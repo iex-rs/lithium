@@ -1,12 +1,4 @@
-use super::{
-    exceptions::{Exception, UnwindException, LITHIUM_EXCEPTION_CLASS},
-    stack_allocator,
-};
-use core::mem::ManuallyDrop;
-
-extern "C-unwind" {
-    fn _Unwind_RaiseException(ex: *mut UnwindException) -> !;
-}
+use super::{backend, exception::Exception, stack_allocator};
 
 /// Not-quite-caught exception.
 ///
@@ -32,9 +24,9 @@ impl<E> InFlightException<E> {
     ///
     /// See [`intercept`] docs for examples and safety notes.
     pub fn rethrow<F>(self, new_cause: F) -> ! {
-        let ex = unsafe { stack_allocator::replace_last(self.ex, new_cause) };
+        let (is_local, ex) = unsafe { stack_allocator::replace_last(self.ex, new_cause) };
         core::mem::forget(self);
-        unsafe { _Unwind_RaiseException(ex.cast()) };
+        unsafe { backend::throw(is_local, ex) };
     }
 }
 
@@ -99,55 +91,8 @@ impl<E> InFlightException<E> {
 /// ```
 #[inline(always)]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
-    intercept_impl(func)
-}
-
-#[inline(always)]
-unsafe fn intercept_impl<Func: FnOnce() -> R, R, E>(
-    func: Func,
-) -> Result<R, (E, InFlightException<E>)> {
-    union Data<Func, R> {
-        func: ManuallyDrop<Func>,
-        result: ManuallyDrop<R>,
-        ex: *mut UnwindException,
-    }
-
-    #[inline]
-    fn do_call<Func: FnOnce() -> R, R>(data: *mut u8) {
-        unsafe {
-            let data: &mut Data<Func, R> = &mut *data.cast();
-            let func = ManuallyDrop::take(&mut data.func);
-            data.result = ManuallyDrop::new(func());
-        }
-    }
-
-    #[inline]
-    fn do_catch<Func: FnOnce() -> R, R>(data: *mut u8, ex: *mut u8) {
-        let data: &mut Data<Func, R> = unsafe { &mut *data.cast() };
-        data.ex = ex.cast();
-    }
-
-    let mut data = Data {
-        func: ManuallyDrop::new(func),
-    };
-
-    if core::intrinsics::catch_unwind(
-        do_call::<Func, R>,
-        (&raw mut data).cast(),
-        do_catch::<Func, R>,
-    ) == 0
-    {
-        return Ok(ManuallyDrop::into_inner(data.result));
-    }
-
-    // Take care not to create a reference to the whole UnwindException, as it may theoretically
-    // alias for foreign exceptions
-    if (*data.ex).class != LITHIUM_EXCEPTION_CLASS {
-        _Unwind_RaiseException(data.ex);
-    }
-
-    let ex: *mut Exception<E> = data.ex.cast();
-    let cause = unsafe { Exception::read_cause(ex) };
-
-    Err((cause, InFlightException { ex }))
+    backend::intercept(func).map_err(|ex| {
+        let cause = unsafe { Exception::read_cause(ex) };
+        (cause, InFlightException { ex })
+    })
 }

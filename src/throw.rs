@@ -1,8 +1,4 @@
-use super::{exceptions::UnwindException, stack_allocator};
-
-extern "C-unwind" {
-    fn _Unwind_RaiseException(ex: *mut UnwindException) -> !;
-}
+use super::{backend, stack_allocator};
 
 /// Throw an exception.
 ///
@@ -10,7 +6,8 @@ extern "C-unwind" {
 ///
 /// # Safety
 ///
-/// See the safety section of [this module](super).
+/// See the safety section of [this module](super) for information on matching types. In addition,
+/// the caller must ensure the exception is not caught with [`std::panic::catch_unwind`].
 ///
 /// # Example
 ///
@@ -23,6 +20,6 @@ extern "C-unwind" {
 /// ```
 #[inline]
 pub unsafe fn throw<E>(cause: E) -> ! {
-    let ex = stack_allocator::push(cause);
-    unsafe { _Unwind_RaiseException(ex.cast()) };
+    let (is_local, ex) = stack_allocator::push(cause);
+    backend::throw(is_local, ex);
 }

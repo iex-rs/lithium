@@ -1,28 +1,16 @@
-use core::mem::{ManuallyDrop, MaybeUninit};
+use super::backend::Header;
+use core::mem::ManuallyDrop;
 
-pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTLITH");
-
-#[repr(C)]
-pub struct UnwindException {
-    pub class: u64,
-    cleanup: Option<unsafe extern "C" fn(i32, *mut UnwindException)>,
-    private: MaybeUninit<[*const (); 2]>,
-}
-
-#[repr(C)] // unwind must be the first field
+#[repr(C)] // header must be the first field
 pub struct Exception<E> {
-    unwind: UnwindException,
+    header: Header,
     cause: ManuallyDrop<E>,
 }
 
 impl<E> Exception<E> {
     pub fn new(cause: E) -> Self {
         Self {
-            unwind: UnwindException {
-                class: LITHIUM_EXCEPTION_CLASS,
-                cleanup: Some(cleanup),
-                private: MaybeUninit::uninit(),
-            },
+            header: Header::new(),
             cause: ManuallyDrop::new(cause),
         }
     }
@@ -46,11 +34,4 @@ impl<E> Exception<E> {
     pub unsafe fn heap_dealloc(ex: *mut Self) {
         drop(Box::from_raw(ex));
     }
-}
-
-unsafe extern "C" fn cleanup(_code: i32, _ex: *mut UnwindException) {
-    eprintln!(
-        "A Lithium exception was caught by a non-Lithium catch mechanism. The process will now terminate.",
-    );
-    std::process::abort();
 }

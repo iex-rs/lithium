@@ -1,4 +1,4 @@
-use super::exceptions::{Exception, UnwindException};
+use super::{backend::Align, exception::Exception};
 use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
 use core::mem::{size_of, MaybeUninit};
@@ -10,8 +10,8 @@ thread_local! {
 #[repr(C)]
 struct StackAllocator {
     size: Cell<usize>,
-    _align: [UnwindException; 0],
-    data: UnsafeCell<[MaybeUninit<u8>; Self::LOCAL_LEN]>, // aligned to UnwindException
+    _align: [Align; 0],
+    data: UnsafeCell<[MaybeUninit<u8>; Self::LOCAL_LEN]>,
 }
 
 impl StackAllocator {
@@ -44,11 +44,11 @@ impl StackAllocator {
         self.size.set(self.size.get() - size_of::<Exception<E>>());
     }
 
-    fn push<E>(&self, cause: E) -> *mut Exception<E> {
+    fn push<E>(&self, cause: E) -> (bool, *mut Exception<E>) {
         if self.can_be_local::<E>() {
-            unsafe { self.push_local(cause) }
+            (true, unsafe { self.push_local(cause) })
         } else {
-            Exception::heap_alloc(cause)
+            (false, Exception::heap_alloc(cause))
         }
     }
 
@@ -60,31 +60,41 @@ impl StackAllocator {
         }
     }
 
-    unsafe fn replace_last<E, F>(&self, ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
+    unsafe fn replace_last<E, F>(
+        &self,
+        ex: *mut Exception<E>,
+        cause: F,
+    ) -> (bool, *mut Exception<F>) {
         if self.is_local(ex) {
             self.pop_local::<E>();
             if size_of::<F>() <= size_of::<E>() || self.can_be_local::<F>() {
                 // Fits in local data. Avoid push_local so that ex is not recomputed from size
                 self.size.set(self.size.get() + size_of::<Exception<F>>());
-                return Exception::replace_cause(ex, cause);
+                return (true, Exception::replace_cause(ex, cause));
             }
         } else {
             // Box<T>'s are compatible as long as Ts have identical layouts. Which is a good thing,
             // because that's a lot easier to check than type equality.
             if Layout::new::<Exception<E>>() == Layout::new::<Exception<F>>() {
-                return Exception::replace_cause(ex, cause);
+                return (false, Exception::replace_cause(ex, cause));
             }
             Exception::heap_dealloc(ex);
             if size_of::<F>() < size_of::<E>() && self.can_be_local::<F>() {
                 // Fits in local data
-                return self.push_local(cause);
+                return (true, self.push_local(cause));
             }
         }
-        Exception::heap_alloc(cause)
+        (false, Exception::heap_alloc(cause))
+    }
+
+    #[allow(dead_code)]
+    unsafe fn last_local<E>(&self) -> *mut Exception<E> {
+        let offset = self.size.get() - size_of::<Exception<E>>();
+        self.data.get().byte_add(offset).cast()
     }
 }
 
-pub fn push<E>(cause: E) -> *mut Exception<E> {
+pub fn push<E>(cause: E) -> (bool, *mut Exception<E>) {
     EXCEPTIONS.with(|store| store.push(cause))
 }
 
@@ -92,6 +102,11 @@ pub unsafe fn pop<E>(ex: *mut Exception<E>) {
     EXCEPTIONS.with(|store| store.pop(ex))
 }
 
-pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
+pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> (bool, *mut Exception<F>) {
     EXCEPTIONS.with(|store| store.replace_last(ex, cause))
+}
+
+#[allow(dead_code)]
+pub unsafe fn last_local<E>() -> *mut Exception<E> {
+    EXCEPTIONS.with(|store| store.last_local())
 }

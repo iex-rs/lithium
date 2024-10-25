@@ -69,37 +69,22 @@
 //! used by the crate match, all safe user-supplied callbacks are sound to call, because safe
 //! callbacks can only interact with exceptions in an isolated manner.
 
-#![cfg_attr(nightly, feature(core_intrinsics))]
+#![cfg_attr(backend = "itanium", feature(core_intrinsics))]
 
+#[cfg(backend = "itanium")]
+#[path = "backend/itanium.rs"]
+mod backend;
+
+#[cfg(backend = "panic")]
+#[path = "backend/panic.rs"]
+mod backend;
+
+mod exception;
+mod intercept;
+mod stack_allocator;
+mod throw;
 mod r#try;
+
+pub use intercept::{intercept, InFlightException};
 pub use r#try::r#try;
-
-cfg_if::cfg_if! {
-    if #[cfg(nightly)] {
-        mod exceptions;
-        mod intercept;
-        mod stack_allocator;
-        mod throw;
-
-        pub use intercept::{intercept, InFlightException};
-        pub use throw::throw;
-    } else {
-        pub unsafe fn intercept<R, E>(_func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
-            panic!("Lithium runtime is unavailable");
-        }
-        pub struct InFlightException<E> {
-            _phantom: core::marker::PhantomData<E>,
-        }
-        impl<E> Drop for InFlightException<E> {
-            fn drop(&mut self) {}
-        }
-        impl<E> InFlightException<E> {
-            pub fn rethrow<F>(self, _new_cause: F) -> ! {
-                unreachable!()
-            }
-        }
-        pub unsafe fn throw<E>(_cause: E) -> ! {
-            panic!("Lithium runtime is unavailable");
-        }
-    }
-}
+pub use throw::throw;
