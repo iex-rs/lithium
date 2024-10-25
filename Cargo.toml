@@ -1,0 +1,20 @@
+[package]
+name = "lithium"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cfg-if = "1.0.0"
+libc = "0.2.159"
+
+[build-dependencies]
+rustc_version = "0.4.1"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(nightly)"] }
+
+[dev-dependencies]
+anyhow = "1"
+
+[package.metadata."docs.rs"]
+all-features = true
