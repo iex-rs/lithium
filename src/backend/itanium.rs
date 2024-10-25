@@ -1,5 +1,5 @@
 use super::exception::Exception;
-use core::mem::ManuallyDrop;
+use core::mem::{ManuallyDrop, MaybeUninit};
 
 extern "C-unwind" {
     fn _Unwind_RaiseException(ex: *mut Header) -> !;
@@ -9,9 +9,9 @@ pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTLITH");
 
 #[repr(C)]
 pub struct Header {
-    pub class: u64,
+    class: u64,
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
-    private: core::mem::MaybeUninit<[*const (); 2]>,
+    private: MaybeUninit<[*const (); 2]>,
 }
 
 pub type Align = Header;
@@ -21,7 +21,7 @@ impl Header {
         Self {
             class: LITHIUM_EXCEPTION_CLASS,
             cleanup: Some(cleanup),
-            private: core::mem::MaybeUninit::uninit(),
+            private: MaybeUninit::uninit(),
         }
     }
 }
@@ -34,7 +34,10 @@ unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
 }
 
 pub unsafe fn throw<E>(_is_local: bool, ex: *mut Exception<E>) -> ! {
-    unsafe { _Unwind_RaiseException(ex.cast()) };
+    #[expect(clippy::used_underscore_items)]
+    unsafe {
+        _Unwind_RaiseException(ex.cast());
+    }
 }
 
 pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut Exception<E>> {
@@ -75,6 +78,7 @@ pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut
     // Take care not to create a reference to the whole header, as it may theoretically alias for
     // foreign exceptions
     if (*data.ex).class != LITHIUM_EXCEPTION_CLASS {
+        #[expect(clippy::used_underscore_items)]
         _Unwind_RaiseException(data.ex);
     }
 

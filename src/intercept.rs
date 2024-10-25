@@ -14,6 +14,7 @@ pub struct InFlightException<E> {
 
 impl<E> Drop for InFlightException<E> {
     /// Drop the exception, stopping Lithium unwinding.
+    #[inline]
     fn drop(&mut self) {
         unsafe { stack_allocator::pop(self.ex) }
     }
@@ -23,10 +24,13 @@ impl<E> InFlightException<E> {
     /// Throw a new exception by reusing the existing context.
     ///
     /// See [`intercept`] docs for examples and safety notes.
+    #[inline]
     pub fn rethrow<F>(self, new_cause: F) -> ! {
         let (is_local, ex) = unsafe { stack_allocator::replace_last(self.ex, new_cause) };
         core::mem::forget(self);
-        unsafe { backend::throw(is_local, ex) };
+        unsafe {
+            backend::throw(is_local, ex);
+        }
     }
 }
 
@@ -89,7 +93,8 @@ impl<E> InFlightException<E> {
 /// // SAFETY: g only ever throws Error
 /// println!("{}", unsafe { r#try::<_, Error>(|| g()) }.unwrap_err());
 /// ```
-#[inline(always)]
+#[allow(clippy::missing_errors_doc)]
+#[inline]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
     backend::intercept(func).map_err(|ex| {
         let cause = unsafe { Exception::read_cause(ex) };

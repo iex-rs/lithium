@@ -70,6 +70,12 @@
 //! callbacks can only interact with exceptions in an isolated manner.
 
 #![cfg_attr(backend = "itanium", feature(core_intrinsics))]
+#![warn(
+    clippy::pedantic,
+    clippy::missing_inline_in_public_items,
+    clippy::semicolon_inside_block,
+    clippy::arithmetic_side_effects
+)]
 
 #[cfg(backend = "itanium")]
 #[path = "backend/itanium.rs"]
