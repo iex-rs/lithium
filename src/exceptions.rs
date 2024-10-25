@@ -1,6 +1,6 @@
 use core::mem::{ManuallyDrop, MaybeUninit};
 
-pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"LITHRUST");
+pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTLITH");
 
 #[repr(C)]
 pub struct UnwindException {
