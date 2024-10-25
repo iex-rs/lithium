@@ -6,8 +6,10 @@ use super::{backend, stack_allocator};
 ///
 /// # Safety
 ///
-/// See the safety section of [this module](super) for information on matching types. In addition,
-/// the caller must ensure the exception is not caught with [`std::panic::catch_unwind`].
+/// See the safety section of [this module](super) for information on matching types.
+///
+/// In addition, the caller must ensure that the exception cannot be caught by the system runtime.
+/// This includes [`std::panic::catch_unwind`] and [`std::thread::spawn`].
 ///
 /// # Example
 ///
