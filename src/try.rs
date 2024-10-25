@@ -31,5 +31,5 @@ use super::intercept;
 #[allow(clippy::missing_errors_doc)]
 #[inline]
 pub unsafe fn r#try<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
-    intercept(func).map_err(|(cause, _)| cause)
+    unsafe { intercept(func) }.map_err(|(cause, _)| cause)
 }

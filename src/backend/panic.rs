@@ -22,7 +22,8 @@ pub unsafe fn throw<E>(is_local: bool, ex: *mut Exception<E>) -> ! {
         // StackPanicException is a ZST, so this avoids an allocation
         Box::new(StackPanicException)
     } else {
-        to_any(Box::from_raw(ex))
+        let ex = unsafe { Box::from_raw(ex) };
+        unsafe { to_any(ex) }
     };
     std::panic::resume_unwind(ex);
 }
@@ -32,9 +33,9 @@ pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut
         Ok(value) => Ok(value),
         Err(ex) => {
             if ex.is::<StackPanicException>() {
-                Err(stack_allocator::last_local::<E>())
-            } else if ex.type_id() == typeid::of::<Exception<E>>() {
-                Err(Box::into_raw(ex) as *mut Exception<E>)
+                Err(unsafe { stack_allocator::last_local::<E>() })
+            } else if (*ex).type_id() == typeid::of::<Exception<E>>() {
+                Err(Box::into_raw(ex).cast())
             } else {
                 resume_unwind(ex);
             }
@@ -43,8 +44,10 @@ pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut
 }
 
 unsafe fn to_any<T: Send>(value: Box<T>) -> Box<dyn Any + Send> {
-    std::mem::transmute::<Box<dyn NonStaticAny + '_>, Box<dyn NonStaticAny + 'static>>(value)
-        .to_any()
+    unsafe {
+        std::mem::transmute::<Box<dyn NonStaticAny + '_>, Box<dyn NonStaticAny + 'static>>(value)
+    }
+    .to_any()
 }
 
 trait NonStaticAny: Send {

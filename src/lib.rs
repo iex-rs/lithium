@@ -70,8 +70,10 @@
 //! callbacks can only interact with exceptions in an isolated manner.
 
 #![cfg_attr(backend = "itanium", feature(core_intrinsics))]
+#![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
     clippy::pedantic,
+    clippy::multiple_unsafe_ops_per_block,
     clippy::missing_inline_in_public_items,
     clippy::semicolon_inside_block,
     clippy::arithmetic_side_effects

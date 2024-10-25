@@ -96,7 +96,7 @@ impl<E> InFlightException<E> {
 #[allow(clippy::missing_errors_doc)]
 #[inline]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
-    backend::intercept(func).map_err(|ex| {
+    unsafe { backend::intercept(func) }.map_err(|ex| {
         let cause = unsafe { Exception::read_cause(ex) };
         (cause, InFlightException { ex })
     })

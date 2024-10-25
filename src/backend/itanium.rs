@@ -49,11 +49,9 @@ pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut
 
     #[inline]
     fn do_call<Func: FnOnce() -> R, R>(data: *mut u8) {
-        unsafe {
-            let data: &mut Data<Func, R> = &mut *data.cast();
-            let func = ManuallyDrop::take(&mut data.func);
-            data.result = ManuallyDrop::new(func());
-        }
+        let data: &mut Data<Func, R> = unsafe { &mut *data.cast() };
+        let func = unsafe { ManuallyDrop::take(&mut data.func) };
+        data.result = ManuallyDrop::new(func());
     }
 
     #[inline]
@@ -66,21 +64,27 @@ pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut
         func: ManuallyDrop::new(func),
     };
 
-    if core::intrinsics::catch_unwind(
-        do_call::<Func, R>,
-        (&raw mut data).cast(),
-        do_catch::<Func, R>,
-    ) == 0
+    if unsafe {
+        core::intrinsics::catch_unwind(
+            do_call::<Func, R>,
+            (&raw mut data).cast(),
+            do_catch::<Func, R>,
+        )
+    } == 0
     {
-        return Ok(ManuallyDrop::into_inner(data.result));
+        return Ok(ManuallyDrop::into_inner(unsafe { data.result }));
     }
+
+    let ex = unsafe { data.ex };
 
     // Take care not to create a reference to the whole header, as it may theoretically alias for
     // foreign exceptions
-    if (*data.ex).class != LITHIUM_EXCEPTION_CLASS {
+    if unsafe { (*ex).class } != LITHIUM_EXCEPTION_CLASS {
         #[expect(clippy::used_underscore_items)]
-        _Unwind_RaiseException(data.ex);
+        unsafe {
+            _Unwind_RaiseException(ex);
+        }
     }
 
-    Err(data.ex.cast())
+    Err(ex.cast())
 }

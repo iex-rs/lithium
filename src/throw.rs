@@ -21,5 +21,7 @@ use super::{backend, stack_allocator};
 #[inline]
 pub unsafe fn throw<E>(cause: E) -> ! {
     let (is_local, ex) = stack_allocator::push(cause);
-    backend::throw(is_local, ex);
+    unsafe {
+        backend::throw(is_local, ex);
+    }
 }

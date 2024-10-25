@@ -35,15 +35,17 @@ impl StackAllocator {
     }
 
     unsafe fn push_local<E>(&self, cause: E) -> *mut Exception<E> {
-        let ex = self.data.get().byte_add(self.size.get()).cast();
-        Exception::place(ex, cause);
+        let ex = unsafe { self.data.get().byte_add(self.size.get()) }.cast();
+        unsafe {
+            Exception::place(ex, cause);
+        }
         self.size
-            .set(self.size.get().unchecked_add(size_of::<Exception<E>>()));
+            .set(unsafe { self.size.get().unchecked_add(size_of::<Exception<E>>()) });
         ex
     }
     unsafe fn pop_local<E>(&self) {
         self.size
-            .set(self.size.get().unchecked_sub(size_of::<Exception<E>>()));
+            .set(unsafe { self.size.get().unchecked_sub(size_of::<Exception<E>>()) });
     }
 
     fn push<E>(&self, cause: E) -> (bool, *mut Exception<E>) {
@@ -56,9 +58,13 @@ impl StackAllocator {
 
     unsafe fn pop<E>(&self, ex: *mut Exception<E>) {
         if self.is_local(ex) {
-            self.pop_local::<E>();
+            unsafe {
+                self.pop_local::<E>();
+            }
         } else {
-            Exception::heap_dealloc(ex);
+            unsafe {
+                Exception::heap_dealloc(ex);
+            }
         }
     }
 
@@ -68,23 +74,27 @@ impl StackAllocator {
         cause: F,
     ) -> (bool, *mut Exception<F>) {
         if self.is_local(ex) {
-            self.pop_local::<E>();
+            unsafe {
+                self.pop_local::<E>();
+            }
             if size_of::<F>() <= size_of::<E>() || self.can_be_local::<F>() {
                 // Fits in local data. Avoid push_local so that ex is not recomputed from size
                 self.size
-                    .set(self.size.get().unchecked_add(size_of::<Exception<F>>()));
-                return (true, Exception::replace_cause(ex, cause));
+                    .set(unsafe { self.size.get().unchecked_add(size_of::<Exception<F>>()) });
+                return (true, unsafe { Exception::replace_cause(ex, cause) });
             }
         } else {
             // Box<T>'s are compatible as long as Ts have identical layouts. Which is a good thing,
             // because that's a lot easier to check than type equality.
             if Layout::new::<Exception<E>>() == Layout::new::<Exception<F>>() {
-                return (false, Exception::replace_cause(ex, cause));
+                return (false, unsafe { Exception::replace_cause(ex, cause) });
             }
-            Exception::heap_dealloc(ex);
+            unsafe {
+                Exception::heap_dealloc(ex);
+            }
             if size_of::<F>() < size_of::<E>() && self.can_be_local::<F>() {
                 // Fits in local data
-                return (true, self.push_local(cause));
+                return (true, unsafe { self.push_local(cause) });
             }
         }
         (false, Exception::heap_alloc(cause))
@@ -92,8 +102,8 @@ impl StackAllocator {
 
     #[allow(dead_code)]
     unsafe fn last_local<E>(&self) -> *mut Exception<E> {
-        let offset = self.size.get().unchecked_sub(size_of::<Exception<E>>());
-        self.data.get().byte_add(offset).cast()
+        let offset = unsafe { self.size.get().unchecked_sub(size_of::<Exception<E>>()) };
+        unsafe { self.data.get().byte_add(offset) }.cast()
     }
 }
 
@@ -102,14 +112,14 @@ pub fn push<E>(cause: E) -> (bool, *mut Exception<E>) {
 }
 
 pub unsafe fn pop<E>(ex: *mut Exception<E>) {
-    EXCEPTIONS.with(|store| store.pop(ex));
+    EXCEPTIONS.with(|store| unsafe { store.pop(ex) });
 }
 
 pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> (bool, *mut Exception<F>) {
-    EXCEPTIONS.with(|store| store.replace_last(ex, cause))
+    EXCEPTIONS.with(|store| unsafe { store.replace_last(ex, cause) })
 }
 
 #[allow(dead_code)]
 pub unsafe fn last_local<E>() -> *mut Exception<E> {
-    EXCEPTIONS.with(|store| store.last_local())
+    EXCEPTIONS.with(|store| unsafe { store.last_local() })
 }
