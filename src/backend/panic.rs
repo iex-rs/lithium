@@ -7,7 +7,7 @@ pub struct StackPanicException;
 #[repr(C)]
 pub struct Header;
 
-pub type Align = ();
+pub type AlignAs = ();
 
 impl Header {
     pub fn new() -> Self {

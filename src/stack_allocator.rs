@@ -1,7 +1,6 @@
-use super::{backend::Align, exception::Exception};
+use super::{backend::AlignAs, exception::Exception, heterogeneous_stack::Stack};
 use core::alloc::Layout;
-use core::cell::{Cell, UnsafeCell};
-use core::mem::{size_of, MaybeUninit};
+use core::mem::size_of;
 
 thread_local! {
     static EXCEPTIONS: StackAllocator = const { StackAllocator::new() };
@@ -9,57 +8,30 @@ thread_local! {
 
 #[repr(C)]
 struct StackAllocator {
-    size: Cell<usize>,
-    _align: [Align; 0],
-    data: UnsafeCell<[MaybeUninit<u8>; Self::LOCAL_LEN]>,
+    stack: Stack<AlignAs, 4096>,
 }
 
 impl StackAllocator {
-    const LOCAL_LEN: usize = 4096;
-
     const fn new() -> Self {
         Self {
-            size: Cell::new(0),
-            _align: [],
-            data: UnsafeCell::new([MaybeUninit::uninit(); Self::LOCAL_LEN]),
+            stack: Stack::new(),
         }
-    }
-
-    fn is_local<E>(&self, ex: *mut Exception<E>) -> bool {
-        size_of::<Exception<E>>() <= Self::LOCAL_LEN
-            && ex.addr().wrapping_sub(self.data.get().addr()) < Self::LOCAL_LEN
-    }
-    fn can_be_local<E>(&self) -> bool {
-        size_of::<Exception<E>>() <= Self::LOCAL_LEN
-            && self.size.get().saturating_add(size_of::<Exception<E>>()) <= Self::LOCAL_LEN
-    }
-
-    unsafe fn push_local<E>(&self, cause: E) -> *mut Exception<E> {
-        let ex = unsafe { self.data.get().byte_add(self.size.get()) }.cast();
-        unsafe {
-            Exception::place(ex, cause);
-        }
-        self.size
-            .set(unsafe { self.size.get().unchecked_add(size_of::<Exception<E>>()) });
-        ex
-    }
-    unsafe fn pop_local<E>(&self) {
-        self.size
-            .set(unsafe { self.size.get().unchecked_sub(size_of::<Exception<E>>()) });
     }
 
     fn push<E>(&self, cause: E) -> (bool, *mut Exception<E>) {
-        if self.can_be_local::<E>() {
-            (true, unsafe { self.push_local(cause) })
-        } else {
-            (false, Exception::heap_alloc(cause))
+        match self.stack.try_push() {
+            Some(item) => (true, item.write(Exception::new(cause))),
+            None => (false, Exception::heap_alloc(cause)),
         }
     }
 
     unsafe fn pop<E>(&self, ex: *mut Exception<E>) {
-        if self.is_local(ex) {
+        if self
+            .stack
+            .contains_allocated::<Exception<E>>(unsafe { &*ex })
+        {
             unsafe {
-                self.pop_local::<E>();
+                self.stack.pop_unchecked::<Exception<E>>();
             }
         } else {
             unsafe {
@@ -73,14 +45,17 @@ impl StackAllocator {
         ex: *mut Exception<E>,
         cause: F,
     ) -> (bool, *mut Exception<F>) {
-        if self.is_local(ex) {
+        if self
+            .stack
+            .contains_allocated::<Exception<E>>(unsafe { &*ex })
+        {
             unsafe {
-                self.pop_local::<E>();
+                self.stack.pop_unchecked::<Exception<E>>();
             }
-            if size_of::<F>() <= size_of::<E>() || self.can_be_local::<F>() {
-                // Fits in local data. Avoid push_local so that ex is not recomputed from size
-                self.size
-                    .set(unsafe { self.size.get().unchecked_add(size_of::<Exception<F>>()) });
+            if size_of::<F>() <= size_of::<E>() {
+                // Necessarily fits in local data
+                let ex: &mut Exception<E> =
+                    unsafe { self.stack.try_push().unwrap_unchecked().assume_init_mut() };
                 return (true, unsafe { Exception::replace_cause(ex, cause) });
             }
         } else {
@@ -92,18 +67,17 @@ impl StackAllocator {
             unsafe {
                 Exception::heap_dealloc(ex);
             }
-            if size_of::<F>() < size_of::<E>() && self.can_be_local::<F>() {
-                // Fits in local data
-                return (true, unsafe { self.push_local(cause) });
+            // Can't fit in local data
+            if size_of::<F>() >= size_of::<E>() {
+                return (false, Exception::heap_alloc(cause));
             }
         }
-        (false, Exception::heap_alloc(cause))
+        self.push(cause)
     }
 
     #[allow(dead_code)]
     unsafe fn last_local<E>(&self) -> *mut Exception<E> {
-        let offset = unsafe { self.size.get().unchecked_sub(size_of::<Exception<E>>()) };
-        unsafe { self.data.get().byte_add(offset) }.cast()
+        unsafe { self.stack.last_mut::<Exception<E>>().assume_init_mut() }
     }
 }
 

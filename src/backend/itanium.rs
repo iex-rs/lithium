@@ -14,7 +14,7 @@ pub struct Header {
     private: MaybeUninit<[*const (); 2]>,
 }
 
-pub type Align = Header;
+pub type AlignAs = Header;
 
 impl Header {
     pub fn new() -> Self {

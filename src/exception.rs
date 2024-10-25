@@ -15,11 +15,6 @@ impl<E> Exception<E> {
         }
     }
 
-    pub unsafe fn place(ptr: *mut Self, cause: E) {
-        unsafe {
-            ptr.write(Self::new(cause));
-        }
-    }
     pub unsafe fn replace_cause<F>(ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
         let ex: *mut Exception<F> = ex.cast();
         let cause_ptr = unsafe { &raw mut (*ex).cause };

@@ -74,6 +74,7 @@
 #![warn(
     clippy::pedantic,
     clippy::multiple_unsafe_ops_per_block,
+    clippy::undocumented_unsafe_blocks,
     clippy::missing_inline_in_public_items,
     clippy::semicolon_inside_block,
     clippy::arithmetic_side_effects
@@ -88,6 +89,7 @@ mod backend;
 mod backend;
 
 mod exception;
+mod heterogeneous_stack;
 mod intercept;
 mod stack_allocator;
 mod throw;
