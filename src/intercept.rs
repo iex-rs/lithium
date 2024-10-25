@@ -42,7 +42,7 @@ impl<E> InFlightException<E> {
 /// in [`Err`]. This handle can be used to rethrow the exception, possibly modifying its value or
 /// type in the process.
 ///
-/// If you always need to catch the exception, use [`try`](super::try) instead. This function is
+/// If you always need to catch the exception, use [`try`](super::try()) instead. This function is
 /// mostly useful as an analogue of [`Result::map_err`].
 ///
 /// Rust panics are propagated as-is and not caught.

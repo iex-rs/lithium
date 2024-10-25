@@ -7,8 +7,8 @@ use super::intercept;
 /// If `func` throws an exception, this function returns it, wrapped it in [`Err`].
 ///
 /// If you need to rethrow the exception, possibly modifying it in the process, consider using the
-/// more efficient [`intercept`] function instead of pairing [`try`](super::try) with
-/// [`throw`](super::throw).
+/// more efficient [`intercept`](intercept()) function instead of pairing [`try`](try()) with
+/// [`throw`](super::throw()).
 ///
 /// Rust panics are propagated as-is and not caught.
 ///

@@ -12,9 +12,9 @@
 //!
 //! # Usage
 //!
-//! Throw an exception with [`throw`], catch it with [`try`](try()) or the more low-level
-//! [`intercept`]. Unlike with Rust panics, non-[`Send`] and non-`'static` types can be used
-//! soundly.
+//! Throw an exception with [`throw`](throw()), catch it with [`try`](try()) or the more low-level
+//! [`intercept`](intercept()). Unlike with Rust panics, non-[`Send`] and non-`'static` types can be
+//! used soundly.
 //!
 //! For interop, all crates that depend on Lithium need to use the same version:
 //!
@@ -43,7 +43,7 @@
 //! happen. Use turbofish to avoid this pitfall.
 //!
 //! The matching types requirement only apply to exceptions that aren't caught inside the
-//! [`try`](try())/[`intercept`] callback. For example, this is sound:
+//! [`try`](try())/[`intercept`](intercept()) callback. For example, this is sound:
 //!
 //! ```rust
 //! use lithium::*;
