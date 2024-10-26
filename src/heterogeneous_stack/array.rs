@@ -5,7 +5,7 @@ use core::mem::{size_of, MaybeUninit};
 // Safety invariants:
 // - len is a factor of `align_of::<AlignAs>()`
 // - `len <= CAPACITY`
-// - There are no references to `data[len..]`; `data[..len]` may be arbitrarily referenced
+// - References to `data[len..]` are not used; `data[..len]` may be arbitrarily referenced
 // - All elements are located in order at offsets `[0; len)`, with sizes rounded up to a factor of
 //   `align_of::<AlignAs>()`
 #[repr(C)]
@@ -25,7 +25,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         }
     }
 
-    /// Returns the size of `T`, rounded up to a facctor of `align_of::<AlignAs>()`.
+    /// Returns the size of `T`, rounded up to a factor of `align_of::<AlignAs>()`.
     ///
     /// Also ensures `T` is no more aligned than `AlignAs`.
     fn get_aligned_size<T>() -> usize {
@@ -41,7 +41,8 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     ///
     /// The new instance might be uninitialized and needs to be initialized before use.
     ///
-    /// Returns `None` if there isn't enough space.
+    /// Returns `None` if there isn't enough space. It is guaranteed that allocation always succeeds
+    /// for zero-sigzed types.
     pub fn try_push<T>(&self) -> Option<&mut MaybeUninit<T>> {
         let size = Self::get_aligned_size::<T>();
 
@@ -63,7 +64,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         // - ptr is non-null
         // - ptr is dereferenceable because its provenance is inferred from data
         // - MaybeUninit<T> is always valid
-        // - By the invariant, there are no references to data[len..]
+        // - By the invariant, references to data[len..] are not used, so this reference is unique
         let ptr: &mut MaybeUninit<T> = unsafe { &mut *ptr };
 
         // SAFETY: size <= capacity - len implies len + size <= capacity < usize::MAX
@@ -72,12 +73,15 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         // Type invariants:
         // - len' is a factor of align_of::<AlignAs>(), as size is a factor of alignment
         // - len' <= CAPACITY still holds
-        // - No references to data[len'..] have been created
+        // - References to data[len'..] are not used by the invariant as len' >= len
         // - The new element is located immediately at len with no empty space, len' is minimal
         Some(ptr)
     }
 
     /// Remove an element from the top of the stack.
+    ///
+    /// The element is not dropped and may be uninitialized. Use [`Stack::last_mut`] and
+    /// [`MaybeUninit::assume_init_drop`] to drop the value explicitly.
     ///
     /// `T` must be no more aligned than `AlignAs`. This is checked statically.
     ///
@@ -86,8 +90,8 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     /// The caller must ensure that:
     /// - The stack is non-empty.
     /// - The top element has type `T` (but not necessarily initialized).
-    /// - All references to the top element, both immutable or mutable, must have been dropped by
-    ///   the moment `pop_unchecked` is called.
+    /// - The references to the top element, both immutable or mutable, are not used after
+    ///   `pop_unchecked` is called.
     pub unsafe fn pop_unchecked<T>(&self) {
         let size = Self::get_aligned_size::<T>();
 
@@ -97,7 +101,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         // Type invariants:
         // - len' is a factor of align_of::<AlignAs>(), as size is a factor of alignment
         // - len' <= len <= CAPACITY holds
-        // - References to data[len'..len] have been dropped due to the safety requirement
+        // - References to data[len'..len] are not used by the safety requirements
         // - The new element is located immediately at len with no empty space, len' is minimal
     }
 
@@ -134,23 +138,18 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         unsafe { &mut *ptr }
     }
 
-    /// Check whether a reference points to within the stack.
+    /// Check whether a pointer points to within the stack.
     ///
-    /// **For-zero-sized types, this always returns `true`, ignoring the reference.**
+    /// **For-zero-sized types, this always returns `true`, ignoring the pointer.**
     ///
-    /// Otherwise, if the reference was originally produced by [`Stack::try_push`] or
-    /// [`Stack::last_mut`], this returns `true`. And if the reference was originally produced by
-    /// another allocation mechanism that cannot point at objects within `Stack`, this returns
-    /// `false`.
+    /// Otherwise, if the pointer was originally produced by [`Stack::try_push`] or
+    /// [`Stack::last_mut`], this returns `true`. If the pointer was originally produced by another
+    /// allocation mechanism that cannot point at objects within `Stack`, this returns `false`.
     ///
     /// If `ptr` was allocated with a type other than `T`, the return value is unspecified.
-    pub fn contains_allocated<T>(&self, ptr: &T) -> bool {
+    pub fn contains_allocated<T>(&self, ptr: *const T) -> bool {
         // For non-ZSTs, stack-allocated pointers addresses are within [data; data + CAPACITY), and
         // this region cannot intersect with non-ZSTs allocated by other methods.
-        size_of::<T>() == 0
-            || std::ptr::from_ref(ptr)
-                .addr()
-                .wrapping_sub(self.data.get().addr())
-                < CAPACITY
+        size_of::<T>() == 0 || ptr.addr().wrapping_sub(self.data.get().addr()) < CAPACITY
     }
 }
