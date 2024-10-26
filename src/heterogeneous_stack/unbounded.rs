@@ -1,7 +1,5 @@
 use super::{align::assert_aligned, array::Stack as BoundedStack, heap::Heap};
 
-const CAPACITY: usize = 4096;
-
 /// A thread-unsafe heterogeneous stack, using statically allocated space when possible.
 ///
 /// Although the stack doesn't track runtime types, all elements are considered independent. Stack
@@ -9,7 +7,7 @@ const CAPACITY: usize = 4096;
 // Safety invariants:
 // - ZSTs are always allocated on the bounded stack.
 pub struct Stack<AlignAs> {
-    bounded_stack: BoundedStack<AlignAs, CAPACITY>,
+    bounded_stack: BoundedStack<AlignAs, 4096>,
     heap: Heap<AlignAs>,
 }
 
