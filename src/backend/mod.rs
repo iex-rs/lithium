@@ -27,9 +27,9 @@
 pub unsafe trait Backend {
     /// An exception header.
     ///
-    /// Allocated exceptions, as stored in the [`Exception`] type, will immediately begin with this
-    /// header. This allows that exception pointers to be used with ABIs that require exceptions to
-    /// start with custom information, like Itanium EH ABI.
+    /// Allocated exceptions, as stored in the [`Exception`](super::exceptions::Exception) type,
+    /// will immediately begin with this header. This allows that exception pointers to be used with
+    /// ABIs that require exceptions to start with custom information, like Itanium EH ABI.
     type ExceptionHeader;
 
     /// Create a new exception header.

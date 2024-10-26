@@ -13,16 +13,16 @@ use core::mem::ManuallyDrop;
 ///
 /// # Safety
 ///
-/// See the safety section of [this module](super) for information on matching types.
+/// See the safety section of [this crate](crate) for information on matching types.
 ///
 /// In addition, the caller must ensure that the exception can only be caught by Lithium functions
 /// and not by the system runtime. The list of banned functions includes
 /// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
 ///
-/// For this reason, the caller must ensure no frames between [`throw`] and
-/// [`catch`](super::catch()) can catch the exception. This includes not passing throwing callbacks
-/// to foreign crates, but also not using [`throw`] in own code that might
-/// [`intercept`](super::intercept()) an exception without cooperation with the throwing side.
+/// For this reason, the caller must ensure no frames between [`throw`] and [`try`](try()) can catch
+/// the exception. This includes not passing throwing callbacks to foreign crates, but also not
+/// using [`throw`] in own code that might [`intercept`] an exception without cooperation with the
+/// throwing side.
 ///
 /// # Example
 ///
@@ -52,15 +52,14 @@ pub unsafe fn throw<E>(cause: E) -> ! {
 /// If `func` throws an exception, this function returns it, wrapped it in [`Err`].
 ///
 /// If you need to rethrow the exception, possibly modifying it in the process, consider using the
-/// more efficient [`intercept`](intercept()) function instead of pairing [`try`](try()) with
-/// [`throw`](super::throw()).
+/// more efficient [`intercept`] function instead of pairing [`try`](try()) with [`throw`].
 ///
 /// Rust panics are propagated as-is and not caught.
 ///
 /// # Safety
 ///
-/// `func` must only throw exceptions of type `E`. See the safety section of [this module](super)
-/// for more information.
+/// `func` must only throw exceptions of type `E`. See the safety section of [this crate](crate) for
+/// more information.
 ///
 /// # Example
 ///
@@ -117,16 +116,16 @@ impl<E> InFlightException<E> {
     ///
     /// # Safety
     ///
-    /// See the safety section of [this module](super) for information on matching types.
+    /// See the safety section of [this crate](crate) for information on matching types.
     ///
     /// In addition, the caller must ensure that the exception can only be caught by Lithium
     /// functions and not by the system runtime. The list of banned functions includes
     /// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
     ///
-    /// For this reason, the caller must ensure no frames between `rethrow` and
-    /// [`catch`](super::catch()) can catch the exception. This includes not passing throwing
-    /// callbacks to foreign crates, but also not using `rethrow` in own code that might
-    /// [`intercept`](super::intercept()) an exception without cooperation with the throwing side.
+    /// For this reason, the caller must ensure no frames between `rethrow` and [`try`](try()) can
+    /// catch the exception. This includes not passing throwing callbacks to foreign crates, but
+    /// also not using `rethrow` in own code that might [`intercept`] an exception without
+    /// cooperation with the throwing side.
     #[inline]
     pub unsafe fn rethrow<F>(self, new_cause: F) -> ! {
         let ex = ManuallyDrop::new(self);
@@ -152,15 +151,15 @@ impl<E> InFlightException<E> {
 /// in [`Err`]. This handle can be used to rethrow the exception, possibly modifying its value or
 /// type in the process.
 ///
-/// If you always need to catch the exception, use [`try`](super::try()) instead. This function is
-/// mostly useful as an analogue of [`Result::map_err`].
+/// If you always need to catch the exception, use [`try`](try()) instead. This function is mostly
+/// useful as an analogue of [`Result::map_err`].
 ///
 /// Rust panics are propagated as-is and not caught.
 ///
 /// # Safety
 ///
-/// `func` must only throw exceptions of type `E`. See the safety section of [this module](super)
-/// for more information.
+/// `func` must only throw exceptions of type `E`. See the safety section of [this crate](crate) for
+/// more information.
 ///
 /// **In addition**, certain requirements are imposed on how the returned [`InFlightException`] is
 /// used. In particular, no exceptions may be thrown between the moment this function returns
