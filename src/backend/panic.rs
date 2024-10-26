@@ -1,4 +1,7 @@
-use super::exceptions::{recover_last, Exception};
+use super::{
+    exceptions::{recover_last, Exception},
+    InFlightException,
+};
 use std::any::Any;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 
@@ -26,17 +29,18 @@ pub unsafe fn throw<E>(is_local: bool, ex: *mut Exception<E>) -> ! {
     std::panic::resume_unwind(ex);
 }
 
-pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut Exception<E>> {
+pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, InFlightException<E>> {
     match catch_unwind(AssertUnwindSafe(func)) {
         Ok(value) => Ok(value),
         Err(ex) => {
-            if ex.is::<StackPanicException>() {
-                Err(unsafe { recover_last::<E>() })
+            let ex = if ex.is::<StackPanicException>() {
+                unsafe { recover_last::<E>() }
             } else if (*ex).type_id() == typeid::of::<Exception<E>>() {
-                Err(Box::into_raw(ex).cast())
+                Box::into_raw(ex).cast()
             } else {
                 resume_unwind(ex);
-            }
+            };
+            Err(unsafe { InFlightException::new(ex) })
         }
     }
 }

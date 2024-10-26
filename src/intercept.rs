@@ -11,6 +11,7 @@ use super::{
 /// At this point, you can either drop the handle, which halts the Lithium machinery and brings you
 /// back to the sane land of [`Result`], or call [`InFlightException::rethrow`] to piggy-back on the
 /// contexts of the caught exception.
+// Type invariant: `ex` is a unique pointer to the exception object on the exception stack.
 pub struct InFlightException<E> {
     ex: *mut Exception<E>,
 }
@@ -24,6 +25,10 @@ impl<E> Drop for InFlightException<E> {
 }
 
 impl<E> InFlightException<E> {
+    pub(crate) unsafe fn new(ex: *mut Exception<E>) -> Self {
+        Self { ex }
+    }
+
     /// Throw a new exception by reusing the existing context.
     ///
     /// See [`intercept`] docs for examples and safety notes.
@@ -102,8 +107,7 @@ impl<E> InFlightException<E> {
 #[inline]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
     unsafe { backend::intercept(func) }.map_err(|ex| {
-        let ex_ref = unsafe { &*ex };
-        let cause = unsafe { ex_ref.cause() };
-        (cause, InFlightException { ex })
+        let ex_ref: &mut Exception<E> = unsafe { &mut *ex.ex };
+        (unsafe { ex_ref.cause() }, ex)
     })
 }

@@ -1,4 +1,4 @@
-use super::exceptions::Exception;
+use super::{exceptions::Exception, InFlightException};
 use core::mem::{ManuallyDrop, MaybeUninit};
 
 extern "C-unwind" {
@@ -38,7 +38,7 @@ pub unsafe fn throw<E>(_is_local: bool, ex: *mut Exception<E>) -> ! {
     }
 }
 
-pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut Exception<E>> {
+pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, InFlightException<E>> {
     union Data<Func, R> {
         func: ManuallyDrop<Func>,
         result: ManuallyDrop<R>,
@@ -84,5 +84,5 @@ pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut
         }
     }
 
-    Err(ex.cast())
+    Err(unsafe { InFlightException::new(ex.cast()) })
 }
