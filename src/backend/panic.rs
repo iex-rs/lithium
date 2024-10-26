@@ -12,20 +12,17 @@ unsafe impl Backend for ActiveBackend {
 
     unsafe fn throw(ex: *mut LithiumMarker) -> ! {
         let ex = unsafe { Box::from_raw(ex) };
-        std::panic::resume_unwind(ex);
+        resume_unwind(ex);
     }
 
-    unsafe fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut LithiumMarker> {
-        match catch_unwind(AssertUnwindSafe(func)) {
-            Ok(value) => Ok(value),
-            Err(ex) => {
-                if ex.is::<LithiumMarker>() {
-                    Err(Box::into_raw(ex).cast())
-                } else {
-                    resume_unwind(ex);
-                }
+    fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut LithiumMarker> {
+        catch_unwind(AssertUnwindSafe(func)).map_err(|ex| {
+            if ex.is::<LithiumMarker>() {
+                Box::into_raw(ex).cast()
+            } else {
+                resume_unwind(ex);
             }
-        }
+        })
     }
 }
 

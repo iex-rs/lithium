@@ -7,14 +7,23 @@
 /// It's crucial that unwinding doesn't require (source-level) cooperation from the intermediate
 /// call frames.
 ///
-/// However, it is also important that the intermediate call frames don't preclude unwinding from
-/// happening soundly. In particular, [`catch_unwind`](std::panic::catch_unwind) can safely catch
-/// panics, and may start catching foreign exceptions soon, both of which can confuse the backend.
-/// For this reason, there are safety requirements beyond type equality.
-///
 /// Backends are supposed to treat exception objects as opaque, except for
 /// [`Backend::ExceptionHeader`]. This also means that exception objects are untyped from the
 /// backend's point of view.
+///
+/// # Safety
+///
+/// Implementations of this trait must ensure that when an exception pointer is thrown, unwinding
+/// proceeds to the closest (most nested) `intercept` frame and that `intercept` returns this exact
+/// pointer (including provenance). The implementation may modify the header arbitrarily during
+/// unwinding, but modifying any other data from the same allocation is forbidden.
+///
+/// Exceptions may not be ignored or caught twice.
+///
+/// Note that several exceptions can co-exist at once, even in a single thread. This can happen if
+/// a destructor that uses exceptions (without letting them escape past `drop`) is invoked during
+/// unwinding from another exception. This can be nested arbitrarily. In this context, the order of
+/// catching must be in the reverse order of throwing.
 pub unsafe trait Backend {
     /// An exception header.
     ///
@@ -32,10 +41,17 @@ pub unsafe trait Backend {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that:
-    /// - `ex` is a unique pointer to an exception object, cast to `ExceptionHeader`.
-    /// - The exception cannot be caught by the system runtime, e.g. [`std::panic::catch_unwind`] or
-    ///    [`std::thread::spawn`].
+    /// The first requirement is that `ex` is a unique pointer to an exception object, cast to
+    /// `*mut Self::ExceptionHeader`.
+    ///
+    /// Secondly, it is important that intermediate call frames don't preclude unwinding from
+    /// happening soundly. For example, [`catch_unwind`](std::panic::catch_unwind) can safely catch
+    /// panics and may start catching foreign exceptions soon, both of which can confuse the user of
+    /// this trait.
+    ///
+    /// For this reason, the caller must ensure no intermediate frames can affect unwinding. This
+    /// includes not passing throwing callbacks to foreign crates, but also not using `throw` in own
+    /// code that might `intercept` an exception without cooperation with the throwing side.
     unsafe fn throw(ex: *mut Self::ExceptionHeader) -> !;
 
     /// Catch an exception.
@@ -44,13 +60,8 @@ pub unsafe trait Backend {
     /// thrown exception is not caught by a nested interceptor). If `Err` is returned, the pointer
     /// must match what was thrown, including provenance.
     ///
-    /// # Safety
-    ///
-    /// The caller must ensure that:
-    /// - `func` only throws exceptions of
-    unsafe fn intercept<Func: FnOnce() -> R, R>(
-        func: Func,
-    ) -> Result<R, *mut Self::ExceptionHeader>;
+    /// Note that this function is safe, as the exception value is type-erased.
+    fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Self::ExceptionHeader>;
 }
 
 #[cfg(backend = "itanium")]

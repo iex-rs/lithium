@@ -72,7 +72,7 @@ pub fn push<E>(cause: E) -> *mut Exception<E> {
 /// # Safety
 ///
 /// The caller must ensure `ex` corresponds to the exception at the top of the stack, as returned by
-/// [`push`] or [`replace_last`] with the same exception type. In addition, the exception must not]
+/// [`push`] or [`replace_last`] with the same exception type. In addition, the exception must not
 /// be accessed after `pop`.
 pub unsafe fn pop<E>(ex: *mut Exception<E>) {
     STACK.with(|stack| {

@@ -23,7 +23,7 @@ unsafe impl Backend for ActiveBackend {
         }
     }
 
-    unsafe fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
+    fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
         union Data<Func, R> {
             func: ManuallyDrop<Func>,
             result: ManuallyDrop<R>,

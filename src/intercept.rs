@@ -2,6 +2,7 @@ use super::{
     backend::{ActiveBackend, Backend},
     exceptions::{pop, replace_last, Exception},
 };
+use core::mem::ManuallyDrop;
 
 /// Not-quite-caught exception.
 ///
@@ -20,6 +21,11 @@ impl<E> Drop for InFlightException<E> {
     /// Drop the exception, stopping Lithium unwinding.
     #[inline]
     fn drop(&mut self) {
+        // SAFETY:
+        // - `ex` is a unique pointer to the exception object by the type invariant.
+        // - The safety requirement on `intercept` requires that all exceptions that are thrown
+        //   between `intercept` and `drop` are balanced. This exception was at the top of the stack
+        //   when `intercept` returned, so it must still be at the top when `drop` is invoked.
         unsafe { pop(self.ex) }
     }
 }
@@ -28,12 +34,31 @@ impl<E> InFlightException<E> {
     /// Throw a new exception by reusing the existing context.
     ///
     /// See [`intercept`] docs for examples and safety notes.
+    ///
+    /// # Safety
+    ///
+    /// See the safety section of [this module](super) for information on matching types.
+    ///
+    /// In addition, the caller must ensure that the exception can only be caught by Lithium
+    /// functions and not by the system runtime. The list of banned functions includes
+    /// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
+    ///
+    /// For this reason, the caller must ensure no frames between `rethrow` and
+    /// [`catch`](super::catch()) can catch the exception. This includes not passing throwing
+    /// callbacks to foreign crates, but also not using `rethrow` in own code that might
+    /// [`intercept`](super::intercept()) an exception without cooperation with the throwing side.
     #[inline]
-    pub fn rethrow<F>(self, new_cause: F) -> ! {
-        let ex = unsafe { replace_last(self.ex, new_cause) };
-        core::mem::forget(self);
+    pub unsafe fn rethrow<F>(self, new_cause: F) -> ! {
+        let ex = ManuallyDrop::new(self);
+        // SAFETY: The same logic that proves `pop` in `drop` is valid applies here. We're not
+        // *really* dropping `self`, but the user code does not know that.
+        let ex = unsafe { replace_last(ex.ex, new_cause) }.cast();
+        // SAFETY:
+        // - `ex` is a unique pointer to the exception object because it was just produced by
+        //   `replace_last`.
+        // - "Don't mess with exceptions" is required transitively.
         unsafe {
-            ActiveBackend::throw(ex.cast());
+            ActiveBackend::throw(ex);
         }
     }
 }
@@ -101,7 +126,7 @@ impl<E> InFlightException<E> {
 #[allow(clippy::missing_errors_doc)]
 #[inline]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
-    unsafe { ActiveBackend::intercept(func) }.map_err(|ex| {
+    ActiveBackend::intercept(func).map_err(|ex| {
         let ex: *mut Exception<E> = ex.cast();
         let ex_ref = unsafe { &*ex };
         let cause = unsafe { ex_ref.cause() };

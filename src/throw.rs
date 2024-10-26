@@ -13,9 +13,12 @@ use super::{
 ///
 /// In addition, the caller must ensure that the exception can only be caught by Lithium functions
 /// and not by the system runtime. The list of banned functions includes
-/// [`std::panic::catch_unwind`] and [`std::thread::spawn`]. This effectively means that all calls
-/// to [`throw`] must eventually be wrapped in [`try`](super::try()) or
-/// [`intercept`](super::intercept()).
+/// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
+///
+/// For this reason, the caller must ensure no frames between [`throw`] and
+/// [`catch`](super::catch()) can catch the exception. This includes not passing throwing callbacks
+/// to foreign crates, but also not using [`throw`] in own code that might
+/// [`intercept`](super::intercept()) an exception without cooperation with the throwing side.
 ///
 /// # Example
 ///
@@ -28,8 +31,11 @@ use super::{
 /// ```
 #[inline]
 pub unsafe fn throw<E>(cause: E) -> ! {
-    let ex = push(cause);
+    let ex = push(cause).cast();
+    // SAFETY:
+    // - The exception is a unique pointer to an exception object, as allocated by `push`.
+    // - "Don't mess with exceptions" is required transitively.
     unsafe {
-        ActiveBackend::throw(ex.cast());
+        ActiveBackend::throw(ex);
     }
 }
