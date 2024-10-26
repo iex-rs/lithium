@@ -8,6 +8,7 @@ use core::mem::{size_of, MaybeUninit};
 // - References to `data[len..]` are not used; `data[..len]` may be arbitrarily referenced
 // - All elements are located in order at offsets `[0; len)`, with sizes rounded up to a factor of
 //   `align_of::<AlignAs>()`
+// - Allocation succeeds if there is enough capacity left.
 #[repr(C)]
 pub struct Stack<AlignAs, const CAPACITY: usize> {
     _align: [AlignAs; 0],
@@ -28,7 +29,11 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     /// Returns the size of `T`, rounded up to a factor of `align_of::<AlignAs>()`.
     ///
     /// Also ensures `T` is no more aligned than `AlignAs`.
-    fn get_aligned_size<T>() -> usize {
+    ///
+    /// Pushing an element of type `T` decreases capacity by `get_aligned_sized::<T>()` bytes,
+    /// popping it increases capacity by the same amount. It is guaranteed that a `push` will
+    /// succeed if it wouldn't lead to the capacity becoming negative.
+    pub fn get_aligned_size<T>() -> usize {
         const {
             assert!(align_of::<T>() <= align_of::<AlignAs>());
         }
@@ -54,6 +59,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         // SAFETY: len <= CAPACITY is an invariant
         let capacity_left = unsafe { CAPACITY.unchecked_sub(self.len.get()) };
         if size > capacity_left {
+            // Type invariant: not enough capacity left
             return None;
         }
 

@@ -2,11 +2,13 @@ use super::array::Stack as BoundedStack;
 use core::alloc::Layout;
 use core::mem::MaybeUninit;
 
+const CAPACITY: usize = 4096;
+
 /// A thread-unsafe heterogeneous stack, using statically allocated space when possible.
 // Safety invariants:
 // - ZSTs are always allocated on the bounded stack.
 pub struct Stack<AlignAs> {
-    bounded_stack: BoundedStack<AlignAs, 4096>,
+    bounded_stack: BoundedStack<AlignAs, CAPACITY>,
 }
 
 impl<AlignAs> Stack<AlignAs> {
@@ -91,13 +93,16 @@ impl<AlignAs> Stack<AlignAs> {
     ///   address, and provenance).
     /// - The element is not accessed after the call to `replace_last`.
     pub unsafe fn replace_last<T, U>(&self, alloc: *mut MaybeUninit<T>) -> &mut MaybeUninit<U> {
+        let old_size = BoundedStack::<AlignAs, CAPACITY>::get_aligned_size::<T>();
+        let new_size = BoundedStack::<AlignAs, CAPACITY>::get_aligned_size::<U>();
         if self.bounded_stack.contains_allocated::<T>(alloc.cast()) {
             unsafe {
                 self.bounded_stack.pop_unchecked::<T>();
             }
-            if size_of::<U>() <= size_of::<T>() {
+            if new_size <= old_size {
                 // Necessarily fits in local data
-                return unsafe { self.bounded_stack.try_push().unwrap_unchecked() };
+                unsafe { self.bounded_stack.try_push::<U>().unwrap_unchecked() };
+                return unsafe { &mut *alloc.cast::<MaybeUninit<U>>() };
             }
         } else {
             // Box<T>'s are compatible as long as Ts have identical layouts. Which is a good thing,
@@ -109,7 +114,7 @@ impl<AlignAs> Stack<AlignAs> {
                 let _ = Box::from_raw(alloc);
             }
             // Can't fit in local data
-            if size_of::<T>() >= size_of::<U>() {
+            if new_size > old_size {
                 return Box::leak(Box::new(MaybeUninit::uninit()));
             }
         }
