@@ -2,6 +2,7 @@ use super::{
     backend::{ActiveBackend, Backend},
     heterogeneous_stack::unbounded::Stack,
 };
+use core::mem::ManuallyDrop;
 
 type Header = <ActiveBackend as Backend>::ExceptionHeader;
 
@@ -9,7 +10,7 @@ type Header = <ActiveBackend as Backend>::ExceptionHeader;
 #[repr(C)] // header must be the first field
 pub struct Exception<E> {
     header: Header,
-    cause: Unaligned<E>,
+    cause: ManuallyDrop<Unaligned<E>>,
 }
 
 #[repr(packed)]
@@ -20,7 +21,7 @@ impl<E> Exception<E> {
     fn new(cause: E) -> Self {
         Self {
             header: ActiveBackend::new_header(),
-            cause: Unaligned(cause),
+            cause: ManuallyDrop::new(Unaligned(cause)),
         }
     }
 
@@ -30,8 +31,9 @@ impl<E> Exception<E> {
     ///
     /// This function returns a bitwise copy of the cause. This means that it can only be called
     /// once on each exception.
-    pub unsafe fn cause(&self) -> E {
-        unsafe { (&raw const self.cause.0).read_unaligned() }
+    pub unsafe fn cause(&mut self) -> E {
+        // SAFETY: We transitively require that the cause is not read twice.
+        unsafe { ManuallyDrop::take(&mut self.cause).0 }
     }
 }
 

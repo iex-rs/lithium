@@ -4,6 +4,9 @@ use super::{
 };
 use core::mem::ManuallyDrop;
 
+// Module invariant: thrown exceptions of type `E` are passed to the backend as instance of
+// `Exception<E>` with the cause filled, which is immediately read out upon catch.
+
 /// Throw an exception.
 ///
 /// If uncaught, exceptions eventually terminate the process or the thread.
@@ -36,6 +39,7 @@ pub unsafe fn throw<E>(cause: E) -> ! {
     // SAFETY:
     // - The exception is a unique pointer to an exception object, as allocated by `push`.
     // - "Don't mess with exceptions" is required transitively.
+    // This satisfies the module invariant.
     unsafe {
         ActiveBackend::throw(ex);
     }
@@ -133,6 +137,7 @@ impl<E> InFlightException<E> {
         // - `ex` is a unique pointer to the exception object because it was just produced by
         //   `replace_last`.
         // - "Don't mess with exceptions" is required transitively.
+        // This satisfies the module invariant.
         unsafe {
             ActiveBackend::throw(ex);
         }
@@ -204,7 +209,11 @@ impl<E> InFlightException<E> {
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
     ActiveBackend::intercept(func).map_err(|ex| {
         let ex: *mut Exception<E> = ex.cast();
-        let ex_ref = unsafe { &*ex };
+        // SAFETY: By the safety requirement, unwinding could only happen from `throw` with type
+        // `E`. Backend guarantees the pointer is passed as-is, and `throw` only throws unique
+        // pointers to valid instances of `Exception<E>` via the backend.
+        let ex_ref = unsafe { &mut *ex };
+        // SAFETY: We only read the cause here once.
         let cause = unsafe { ex_ref.cause() };
         (cause, InFlightException { ex })
     })
