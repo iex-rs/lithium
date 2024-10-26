@@ -42,9 +42,14 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     /// The new instance might be uninitialized and needs to be initialized before use.
     ///
     /// Returns `None` if there isn't enough space. It is guaranteed that allocation always succeeds
-    /// for zero-sigzed types.
+    /// for zero-sized types.
     pub fn try_push<T>(&self) -> Option<&mut MaybeUninit<T>> {
         let size = Self::get_aligned_size::<T>();
+        if size == 0 {
+            // SAFETY: ZST reads from dangling pointers are always legal and may alias
+            let ptr = unsafe { &mut *std::ptr::dangling_mut() };
+            return Some(ptr);
+        }
 
         // SAFETY: len <= CAPACITY is an invariant
         let capacity_left = unsafe { CAPACITY.unchecked_sub(self.len.get()) };
@@ -95,6 +100,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     pub unsafe fn pop_unchecked<T>(&self) {
         let size = Self::get_aligned_size::<T>();
 
+        // For ZSTs, this is a no-op.
         // SAFETY: len >= size because the top element is an instance of T
         self.len.set(unsafe { self.len.get().unchecked_sub(size) });
 
@@ -118,6 +124,10 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     #[expect(clippy::mut_from_ref)]
     pub unsafe fn last_mut<T>(&self) -> &mut MaybeUninit<T> {
         let size = Self::get_aligned_size::<T>();
+        if size == 0 {
+            // SAFETY: ZST reads from dangling pointers are always legal and may alias
+            return unsafe { &mut *std::ptr::dangling_mut() };
+        }
 
         // SAFETY: len >= size because the top element is an instance of T
         let offset = unsafe { self.len.get().unchecked_sub(size) };
@@ -148,8 +158,16 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     ///
     /// If `ptr` was allocated with a type other than `T`, the return value is unspecified.
     pub fn contains_allocated<T>(&self, ptr: *const T) -> bool {
-        // For non-ZSTs, stack-allocated pointers addresses are within [data; data + CAPACITY), and
-        // this region cannot intersect with non-ZSTs allocated by other methods.
-        size_of::<T>() == 0 || ptr.addr().wrapping_sub(self.data.get().addr()) < CAPACITY
+        let size = Self::get_aligned_size::<T>();
+        if size == 0 {
+            return true;
+        }
+        // Types larger than CAPACITY can never be successfully allocated
+        CAPACITY.checked_sub(size).is_some_and(|limit| {
+            // For non-ZSTs, stack-allocated pointers addresses are within
+            // [data; data + CAPACITY - size], and this region cannot intersect with non-ZSTs
+            // allocated by other methods.
+            ptr.addr().wrapping_sub(self.data.get().addr()) <= limit
+        })
     }
 }
