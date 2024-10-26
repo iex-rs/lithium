@@ -1,4 +1,4 @@
-use super::{
+use crate::{
     exceptions::{recover_last, Exception},
     InFlightException,
 };
@@ -6,6 +6,10 @@ use std::any::Any;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 
 pub struct StackPanicException;
+
+pub struct ActiveBackend;
+
+impl Backend for ActiveBackend {dassadsa}
 
 #[repr(C)]
 pub struct Header;

@@ -1,4 +1,9 @@
-use super::{backend::Header, heterogeneous_stack::unbounded::Stack};
+use super::{
+    backend::{ActiveBackend, Backend},
+    heterogeneous_stack::unbounded::Stack,
+};
+
+type Header = <ActiveBackend as Backend>::ExceptionHeader;
 
 /// An exception object, to be used by the backend.
 #[repr(C)] // header must be the first field
@@ -14,7 +19,7 @@ impl<E> Exception<E> {
     /// Create a new exception to be thrown.
     fn new(cause: E) -> Self {
         Self {
-            header: Header::new(),
+            header: ActiveBackend::new_header(),
             cause: Unaligned(cause),
         }
     }

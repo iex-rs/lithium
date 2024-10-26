@@ -1,6 +1,6 @@
 use super::{
-    backend,
-    exceptions::{is_recoverable, push},
+    backend::{ActiveBackend, Backend},
+    exceptions::push,
 };
 
 /// Throw an exception.
@@ -11,8 +11,11 @@ use super::{
 ///
 /// See the safety section of [this module](super) for information on matching types.
 ///
-/// In addition, the caller must ensure that the exception cannot be caught by the system runtime.
-/// This includes [`std::panic::catch_unwind`] and [`std::thread::spawn`].
+/// In addition, the caller must ensure that the exception can only be caught by Lithium functions
+/// and not by the system runtime. The list of banned functions includes
+/// [`std::panic::catch_unwind`] and [`std::thread::spawn`]. This effectively means that all calls
+/// to [`throw`] must eventually be wrapped in [`try`](super::try()) or
+/// [`intercept`](super::intercept()).
 ///
 /// # Example
 ///
@@ -26,8 +29,7 @@ use super::{
 #[inline]
 pub unsafe fn throw<E>(cause: E) -> ! {
     let ex = push(cause);
-    let is_recoverable = is_recoverable(ex);
     unsafe {
-        backend::throw(is_recoverable, ex);
+        ActiveBackend::throw(ex.cast());
     }
 }

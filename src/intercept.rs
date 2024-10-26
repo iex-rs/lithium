@@ -1,6 +1,6 @@
 use super::{
-    backend,
-    exceptions::{is_recoverable, pop, replace_last, Exception},
+    backend::{ActiveBackend, Backend},
+    exceptions::{pop, replace_last, Exception},
 };
 
 /// Not-quite-caught exception.
@@ -35,10 +35,9 @@ impl<E> InFlightException<E> {
     #[inline]
     pub fn rethrow<F>(self, new_cause: F) -> ! {
         let ex = unsafe { replace_last(self.ex, new_cause) };
-        let is_recoverable = is_recoverable(ex);
         core::mem::forget(self);
         unsafe {
-            backend::throw(is_recoverable, ex);
+            ActiveBackend::throw(ex.cast());
         }
     }
 }
@@ -106,8 +105,10 @@ impl<E> InFlightException<E> {
 #[allow(clippy::missing_errors_doc)]
 #[inline]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
-    unsafe { backend::intercept(func) }.map_err(|ex| {
-        let ex_ref: &mut Exception<E> = unsafe { &mut *ex.ex };
-        (unsafe { ex_ref.cause() }, ex)
+    unsafe { ActiveBackend::intercept(func) }.map_err(|ex| {
+        let ex: *mut Exception<E> = ex.cast();
+        let ex_ref = unsafe { &*ex };
+        let cause = unsafe { ex_ref.cause() };
+        (cause, InFlightException { ex })
     })
 }

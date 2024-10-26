@@ -80,14 +80,7 @@
     clippy::arithmetic_side_effects
 )]
 
-#[cfg(backend = "itanium")]
-#[path = "backend/itanium.rs"]
 mod backend;
-
-#[cfg(backend = "panic")]
-#[path = "backend/panic.rs"]
-mod backend;
-
 mod exceptions;
 mod heterogeneous_stack;
 mod intercept;
