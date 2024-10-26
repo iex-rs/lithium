@@ -1,5 +1,4 @@
 use super::{align::get_rounded_size, array::Stack as BoundedStack, heap::Heap};
-use core::mem::MaybeUninit;
 
 const CAPACITY: usize = 4096;
 
@@ -20,31 +19,30 @@ impl<AlignAs> Stack<AlignAs> {
         }
     }
 
-    /// Allocate enough space for an instance of `T`, returning a reference to the new instance.
+    /// Allocate enough space for an instance of `T`, returning a pointer to the new instance.
     ///
     /// `T` must be no more aligned than `AlignAs`. This is checked statically.
     ///
-    /// The new instance might be uninitialized and needs to be initialized before use.
+    /// The pointer is guaranteed to be aligned and valid, but will point at an uninitialized value.
     ///
     /// # Panics
     ///
     /// This function panics if allocating the object fails.
-    pub fn push<T>(&self) -> &mut MaybeUninit<T> {
+    pub fn push<T>(&self) -> *mut T {
         let n = get_rounded_size::<AlignAs, T>();
         let ptr = self
             .bounded_stack
             .try_push(n)
             .unwrap_or_else(|| self.heap.alloc(n));
-        // SAFETY:
         // - The pointer is aligned for `T` thanks to `get_rounded_size`.
         // - The pointer is valid for writes and doesn't alias by guarantees of `try_push`/`alloc`.
-        unsafe { &mut *ptr.cast::<MaybeUninit<T>>() }
+        ptr.cast()
     }
 
     /// Remove an element from the top of the stack.
     ///
-    /// The element is not dropped and may be uninitialized. Use [`MaybeUninit::assume_init_drop`]
-    /// to drop the value explicitly.
+    /// The element is not dropped, so it may be uninitialized. If the value needs to be dropped, do
+    /// that manually.
     ///
     /// `T` must be no more aligned than `AlignAs`. This is checked statically.
     ///
@@ -55,7 +53,7 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The passed pointer corresponds to the top element of the stack (i.e. has a matching type,
     ///   address, and provenance).
     /// - The element is not accessed after the call to `pop`.
-    pub unsafe fn pop<T>(&self, ptr: *mut MaybeUninit<T>) {
+    pub unsafe fn pop<T>(&self, ptr: *mut T) {
         let n = get_rounded_size::<AlignAs, T>();
         let ptr = ptr.cast();
         if self.bounded_stack.contains_allocated(ptr, n) {
@@ -101,35 +99,34 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The passed pointer corresponds to the top element of the stack (i.e. has a matching type,
     ///   address, and provenance).
     /// - The element is not accessed after the call to `replace_last`.
-    pub unsafe fn replace_last<T, U>(&self, ptr: *mut MaybeUninit<T>) -> &mut MaybeUninit<U> {
+    pub unsafe fn replace_last<T, U>(&self, ptr: *mut T) -> *mut U {
         let old_n = get_rounded_size::<AlignAs, T>();
         let new_n = get_rounded_size::<AlignAs, U>();
-        if self.bounded_stack.contains_allocated(ptr.cast(), old_n) {
-            unsafe {
-                self.bounded_stack.pop_unchecked(old_n);
-            }
-            if new_n <= old_n {
-                // Necessarily fits in local data
-                unsafe { self.bounded_stack.try_push(new_n).unwrap_unchecked() };
-                return unsafe { &mut *ptr.cast() };
-            }
-        } else {
-            if old_n == new_n {
-                // Can reuse the allocation
-                return unsafe { &mut *ptr.cast() };
-            }
-            unsafe {
-                self.heap.dealloc(ptr.cast(), old_n);
-            }
-            // Can't fit in local data
-            if new_n > old_n {
-                return unsafe { &mut *self.heap.alloc(new_n).cast() };
-            }
+        if old_n == new_n {
+            // Can reuse the allocation
+            return ptr.cast();
+        }
+        let was_on_stack = self.bounded_stack.contains_allocated(ptr.cast(), old_n);
+        // SAFETY: Valid by transitive requirements.
+        unsafe {
+            self.pop(ptr);
+        }
+        if was_on_stack && new_n < old_n {
+            let ptr = self.bounded_stack.try_push(new_n);
+            // SAFETY: If the previous allocation was on the stack and the new allocation is
+            // smaller, it must necessarily succeed.
+            let ptr = unsafe { ptr.unwrap_unchecked() };
+            return ptr.cast();
+        }
+        if !was_on_stack && new_n > old_n {
+            // If the previous allocation was on the heap and the new allocation is bigger, it won't
+            // fit on stack either.
+            return self.heap.alloc(new_n).cast();
         }
         self.push::<U>()
     }
 
-    /// Get a mutable reference to the top of the stack.
+    /// Get a pointer to the top of the stack.
     ///
     /// This is only possible if the element is recoverable, that is, if [`Stack::is_recoverable`]
     /// has returned true for the element.
@@ -141,16 +138,15 @@ impl<AlignAs> Stack<AlignAs> {
     /// The caller must ensure that:
     /// - The stack is non-empty.
     /// - The top element has type `T` (but not necessarily initialized).
-    /// - No references to the top element exist.
     /// - The element is recoverable.
-    #[expect(clippy::mut_from_ref)]
-    pub unsafe fn recover_last_mut<T>(&self) -> &mut MaybeUninit<T> {
+    ///
+    /// If the caller dereferences the pointer, it must separately ensure that no references alias.
+    pub unsafe fn recover_last_mut<T>(&self) -> *mut T {
         let n = get_rounded_size::<AlignAs, T>();
         // SAFETY: As the element is recoverable, it must have been allocated on the stack. Thus
         // there are at least `n` bytes allocated.
         let ptr = unsafe { self.bounded_stack.last_mut(n) };
-        // SAFETY: `ptr` points at a valid allocation of `T`, unique by the safety requirement.
-        unsafe { &mut *ptr.cast() }
+        ptr.cast()
     }
 
     /// Check whether an element reference can be recovered.

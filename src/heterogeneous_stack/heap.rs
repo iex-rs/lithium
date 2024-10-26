@@ -1,3 +1,4 @@
+use super::align::assert_aligned;
 use core::alloc::Layout;
 use core::marker::PhantomData;
 use std::alloc;
@@ -22,8 +23,9 @@ impl<AlignAs> Heap<AlignAs> {
     /// # Panics
     ///
     /// Panics if `n` is not a multiple of `align_of::<AlignAs>()` or `n` is 0.
+    #[expect(clippy::unused_self)]
     pub fn alloc(&self, n: usize) -> *mut u8 {
-        assert!(n % align_of::<AlignAs>() == 0);
+        assert_aligned::<AlignAs>(n);
         assert!(n != 0);
         let layout = Layout::from_size_align(n, align_of::<AlignAs>()).unwrap();
         // SAFETY: n != 0 has been checked
@@ -37,6 +39,7 @@ impl<AlignAs> Heap<AlignAs> {
     /// The caller must ensure that the pointer was produced by a call to [`Heap::alloc`] with the
     /// same value of `n`. In addition, references to the deallocated memory must not be used after
     /// `dealloc` is called.
+    #[expect(clippy::unused_self)]
     pub unsafe fn dealloc(&self, ptr: *mut u8, n: usize) {
         let layout = Layout::from_size_align(n, align_of::<AlignAs>()).unwrap();
         // SAFETY:

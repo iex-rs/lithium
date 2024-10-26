@@ -10,3 +10,10 @@ pub const fn get_rounded_size<AlignAs, T>() -> usize {
     // a multiple of alignment, which is a power of two, never overflows.
     size_of::<T>().next_multiple_of(align_of::<AlignAs>())
 }
+
+pub fn assert_aligned<AlignAs>(n: usize) {
+    // Clippy thinks % can panic here, but the divisor is never 0 and we're working in unsigned
+    #[expect(clippy::arithmetic_side_effects)]
+    let modulo = n % align_of::<AlignAs>();
+    assert!(modulo == 0, "Unaligned");
+}

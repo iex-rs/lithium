@@ -1,3 +1,4 @@
+use super::align::assert_aligned;
 use core::cell::{Cell, UnsafeCell};
 use core::mem::MaybeUninit;
 
@@ -43,7 +44,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     ///
     /// Panics if `n` is not a multiple of `align_of::<AlignAs>()`.
     pub fn try_push(&self, n: usize) -> Option<*mut u8> {
-        assert!(n % align_of::<AlignAs>() == 0);
+        assert_aligned::<AlignAs>(n);
 
         if n == 0 {
             // Dangling pointers to ZSTs are always valid and unique. Creating `*mut AlignAs`
@@ -90,7 +91,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     /// - References to the top `n` bytes, both immutable or mutable, are not used after
     ///   `pop_unchecked` is called.
     pub unsafe fn pop_unchecked(&self, n: usize) {
-        assert!(n % align_of::<AlignAs>() == 0);
+        assert_aligned::<AlignAs>(n);
 
         // For ZSTs, this is a no-op.
         // SAFETY: len >= n by the safety requirement
@@ -112,7 +113,6 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     /// The caller must ensure that the stack has at least `n` bytes allocated.
     ///
     /// Dereferencing the resulting pointer requires that the caller ensures it doesn't alias.
-    #[expect(clippy::mut_from_ref)]
     pub unsafe fn last_mut(&self, n: usize) -> *mut u8 {
         if n == 0 {
             return std::ptr::dangling_mut();
