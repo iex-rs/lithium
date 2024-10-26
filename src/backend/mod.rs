@@ -59,8 +59,6 @@ pub unsafe trait Backend {
     /// This function returns `Ok` if the function returns normally, or `Err` if it throws (and the
     /// thrown exception is not caught by a nested interceptor). If `Err` is returned, the pointer
     /// must match what was thrown, including provenance.
-    ///
-    /// Note that this function is safe, as the exception value is type-erased.
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Self::ExceptionHeader>;
 }
 
@@ -72,4 +70,4 @@ mod imp;
 #[path = "panic.rs"]
 mod imp;
 
-pub use imp::ActiveBackend;
+pub(crate) use imp::ActiveBackend;
