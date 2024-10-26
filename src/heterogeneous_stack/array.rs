@@ -1,14 +1,19 @@
 use core::cell::{Cell, UnsafeCell};
-use core::mem::{size_of, MaybeUninit};
+use core::mem::MaybeUninit;
 
-/// A thread-unsafe heterogeneous arrayvec-like stack.
+/// A thread-unsafe array-backed stack allocator.
+///
+/// This allocator can allocate values with sizes that are multiples of `align_of::<AlignAs>()`,
+/// guaranteeing alignment to `align_of::<AlignAs>()`.
+///
+/// The allocated bytes are always consecutive.
 // Safety invariants:
 // - len is a factor of `align_of::<AlignAs>()`
 // - `len <= CAPACITY`
 // - References to `data[len..]` are not used; `data[..len]` may be arbitrarily referenced
-// - All elements are located in order at offsets `[0; len)`, with sizes rounded up to a factor of
-//   `align_of::<AlignAs>()`
-// - Allocation succeeds if there is enough capacity left.
+// - All elements are consecutive, with the last element ending at `len`
+// - Element sizes are multiples of `align_of::<AlignAs>()`
+// - Allocation necessarily succeeds if there is enough capacity left
 #[repr(C)]
 pub struct Stack<AlignAs, const CAPACITY: usize> {
     _align: [AlignAs; 0],
@@ -26,152 +31,115 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         }
     }
 
-    /// Returns the size of `T`, rounded up to a factor of `align_of::<AlignAs>()`.
+    /// Allocate `n` bytes.
     ///
-    /// Also ensures `T` is no more aligned than `AlignAs`.
-    ///
-    /// Pushing an element of type `T` decreases capacity by `get_aligned_sized::<T>()` bytes,
-    /// popping it increases capacity by the same amount. It is guaranteed that a `push` will
-    /// succeed if it wouldn't lead to the capacity becoming negative.
-    pub fn get_aligned_size<T>() -> usize {
-        const {
-            assert!(align_of::<T>() <= align_of::<AlignAs>());
-        }
-        size_of::<T>().next_multiple_of(align_of::<AlignAs>())
-    }
-
-    /// Allocate enough space for an instance of `T`, returning a reference to the new instance.
-    ///
-    /// `T` must be no more aligned than `AlignAs`. This is checked statically.
-    ///
-    /// The new instance might be uninitialized and needs to be initialized before use.
+    /// `n` must be a multiple of `align_of::<AlignAs>()`. The returned pointer is guaranteed to be
+    /// aligned to `align_of::<AlignAs>()` and valid for reads/writes for `n` bytes. It is also
+    /// guaranteed to be unique.
     ///
     /// Returns `None` if there isn't enough space. It is guaranteed that allocation always succeeds
-    /// for zero-sized types.
-    pub fn try_push<T>(&self) -> Option<&mut MaybeUninit<T>> {
-        let size = Self::get_aligned_size::<T>();
-        if size == 0 {
-            // SAFETY: ZST reads from dangling pointers are always legal and may alias
-            let ptr = unsafe { &mut *std::ptr::dangling_mut() };
-            return Some(ptr);
+    /// if there's at least `n` free capacity. In particular, allocating 0 bytes always succeeds.
+    pub fn try_push(&self, n: usize) -> Option<*mut u8> {
+        assert!(n % align_of::<AlignAs>() == 0);
+
+        if n == 0 {
+            // Dangling pointers to ZSTs are always valid and unique. Creating `*mut AlignAs`
+            // instead of *mut u8` forces alignment.
+            return Some(std::ptr::dangling_mut::<AlignAs>().cast());
         }
 
         // SAFETY: len <= CAPACITY is an invariant
         let capacity_left = unsafe { CAPACITY.unchecked_sub(self.len.get()) };
-        if size > capacity_left {
+        if n > capacity_left {
             // Type invariant: not enough capacity left
             return None;
         }
 
         // SAFETY: len is in-bounds for data by the invariant
         let ptr = unsafe { self.data.get().byte_add(self.len.get()) };
-        let ptr: *const UnsafeCell<MaybeUninit<T>> = ptr.cast();
 
-        let ptr: *mut MaybeUninit<T> = UnsafeCell::raw_get(ptr);
+        // - `ptr` is aligned because both `data` and `len` are aligned
+        // - `ptr` is valid for reads/writes for `n` bytes because it's a subset of an allocation
+        // - `ptr` is unique by the type invariant
+        let ptr: *mut u8 = ptr.cast();
 
-        // SAFETY:
-        // - ptr is aligned because both data and len are aligned to align_of::<AlignAs>(), and T is
-        //   no more aligned than AlignAs
-        // - ptr is non-null
-        // - ptr is dereferenceable because its provenance is inferred from data
-        // - MaybeUninit<T> is always valid
-        // - By the invariant, references to data[len..] are not used, so this reference is unique
-        let ptr: &mut MaybeUninit<T> = unsafe { &mut *ptr };
-
-        // SAFETY: size <= capacity - len implies len + size <= capacity < usize::MAX
-        self.len.set(unsafe { self.len.get().unchecked_add(size) });
+        // SAFETY: n <= capacity - len implies len + n <= capacity < usize::MAX
+        self.len.set(unsafe { self.len.get().unchecked_add(n) });
 
         // Type invariants:
-        // - len' is a factor of align_of::<AlignAs>(), as size is a factor of alignment
+        // - len' is a factor of align_of::<AlignAs>(), as n is a factor of alignment
         // - len' <= CAPACITY still holds
         // - References to data[len'..] are not used by the invariant as len' >= len
         // - The new element is located immediately at len with no empty space, len' is minimal
         Some(ptr)
     }
 
-    /// Remove an element from the top of the stack.
+    /// Remove bytes from the top of the stack.
     ///
-    /// The element is not dropped and may be uninitialized. Use [`Stack::last_mut`] and
-    /// [`MaybeUninit::assume_init_drop`] to drop the value explicitly.
-    ///
-    /// `T` must be no more aligned than `AlignAs`. This is checked statically.
+    /// `n` must be a multiple of `align_of::<AlignAs>()`.
     ///
     /// # Safety
     ///
     /// The caller must ensure that:
-    /// - The stack is non-empty.
-    /// - The top element has type `T` (but not necessarily initialized).
-    /// - The references to the top element, both immutable or mutable, are not used after
+    /// - The stack has at least `n` bytes allocated.
+    /// - References to the top `n` bytes, both immutable or mutable, are not used after
     ///   `pop_unchecked` is called.
-    pub unsafe fn pop_unchecked<T>(&self) {
-        let size = Self::get_aligned_size::<T>();
+    pub unsafe fn pop_unchecked(&self, n: usize) {
+        assert!(n % align_of::<AlignAs>() == 0);
 
         // For ZSTs, this is a no-op.
-        // SAFETY: len >= size because the top element is an instance of T
-        self.len.set(unsafe { self.len.get().unchecked_sub(size) });
+        // SAFETY: len >= n by the safety requirement
+        self.len.set(unsafe { self.len.get().unchecked_sub(n) });
 
         // Type invariants:
-        // - len' is a factor of align_of::<AlignAs>(), as size is a factor of alignment
+        // - len' is a factor of align_of::<AlignAs>(), as n is a factor of alignment
         // - len' <= len <= CAPACITY holds
-        // - References to data[len'..len] are not used by the safety requirements
-        // - The new element is located immediately at len with no empty space, len' is minimal
+        // - References to data[len'..len] are not used by the safety requirement
+        // - The previous allocation ends at len'
     }
 
-    /// Get a mutable reference to the top of the stack.
+    /// Get a mutable pointer to the top `n` bytes of the stack.
     ///
-    /// `T` must be no more aligned than `AlignAs`. This is checked statically.
+    /// The return value points at the *first* of the `n` bytes.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that:
-    /// - The stack is non-empty.
-    /// - The top element has type `T` (but not necessarily initialized).
-    /// - No references to the top element exist.
+    /// The caller must ensure that the stack has at least `n` bytes allocated.
+    ///
+    /// Dereferencing the resulting pointer requires that the caller ensures it doesn't alias.
     #[expect(clippy::mut_from_ref)]
-    pub unsafe fn last_mut<T>(&self) -> &mut MaybeUninit<T> {
-        let size = Self::get_aligned_size::<T>();
-        if size == 0 {
-            // SAFETY: ZST reads from dangling pointers are always legal and may alias
-            return unsafe { &mut *std::ptr::dangling_mut() };
+    pub unsafe fn last_mut(&self, n: usize) -> *mut u8 {
+        if n == 0 {
+            return std::ptr::dangling_mut();
         }
 
-        // SAFETY: len >= size because the top element is an instance of T
-        let offset = unsafe { self.len.get().unchecked_sub(size) };
+        // SAFETY: len >= n by the safety requirement
+        let offset = unsafe { self.len.get().unchecked_sub(n) };
 
         // SAFETY: offset is in-bounds because offset <= len <= CAPACITY
         let ptr = unsafe { self.data.get().byte_add(offset) };
-        let ptr: *const UnsafeCell<MaybeUninit<T>> = ptr.cast();
-
-        let ptr: *mut MaybeUninit<T> = UnsafeCell::raw_get(ptr);
-
-        // SAFETY:
-        // - ptr is aligned because both data and offset are aligned to align_of::<AlignAs>(), and T
-        //   is no more aligned than AlignAs
-        // - ptr is non-null
-        // - ptr is dereferenceable because its provenance is inferred from data
-        // - MaybeUninit<T> is always valid
-        // - No references to the value exist by the requirement
-        unsafe { &mut *ptr }
+        ptr.cast()
     }
 
-    /// Check whether a pointer points to within the stack.
+    /// Check whether an allocation is within the stack.
     ///
-    /// **For-zero-sized types, this always returns `true`, ignoring the pointer.**
+    /// If `ptr` was produced from allocating `n` bytes with this stack and the stack hasn't been
+    /// moved since the allocation, this returns `true`.
     ///
-    /// Otherwise, if the pointer was originally produced by [`Stack::try_push`] or
-    /// [`Stack::last_mut`], this returns `true`. If the pointer was originally produced by another
-    /// allocation mechanism that cannot point at objects within `Stack`, this returns `false`.
+    /// If `ptr` was produced by another allocator that couldn't have used the stack space
+    /// **and `n > 0`**, this returns `false`.
     ///
-    /// If `ptr` was allocated with a type other than `T`, the return value is unspecified.
-    pub fn contains_allocated<T>(&self, ptr: *const T) -> bool {
-        let size = Self::get_aligned_size::<T>();
-        if size == 0 {
+    /// If `n = 0`, this always returns `true`, ignoring the pointer.
+    ///
+    /// In all other cases, the return value is unspecified.
+    pub fn contains_allocated(&self, ptr: *const u8, n: usize) -> bool {
+        if n == 0 {
             return true;
         }
         // Types larger than CAPACITY can never be successfully allocated
-        CAPACITY.checked_sub(size).is_some_and(|limit| {
+        CAPACITY.checked_sub(n).is_some_and(|limit| {
             // For non-ZSTs, stack-allocated pointers addresses are within
-            // [data; data + CAPACITY - size], and this region cannot intersect with non-ZSTs
+            // [data; data + CAPACITY - n], and this region cannot intersect with non-ZSTs
             // allocated by other methods.
             ptr.addr().wrapping_sub(self.data.get().addr()) <= limit
         })

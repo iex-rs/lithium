@@ -1,4 +1,4 @@
-use super::array::Stack as BoundedStack;
+use super::{align::get_rounded_size, array::Stack as BoundedStack};
 use core::alloc::Layout;
 use core::mem::MaybeUninit;
 
@@ -29,8 +29,14 @@ impl<AlignAs> Stack<AlignAs> {
     ///
     /// This function panics if allocating the object fails.
     pub fn push<T>(&self) -> &mut MaybeUninit<T> {
-        match self.bounded_stack.try_push::<T>() {
-            Some(alloc) => alloc,
+        let n = get_rounded_size::<AlignAs, T>();
+        match self.bounded_stack.try_push(n) {
+            Some(alloc) => {
+                // SAFETY:
+                // - The pointer is aligned for `T` thanks to `get_rounded_size`.
+                // - The pointer is valid for writes and doesn't alias by guarantees of `try_push`.
+                unsafe { &mut *alloc.cast::<MaybeUninit<T>>() }
+            }
             None => Box::leak(Box::new(MaybeUninit::uninit())),
         }
     }
@@ -50,14 +56,16 @@ impl<AlignAs> Stack<AlignAs> {
     ///   address, and provenance).
     /// - The element is not accessed after the call to `pop`.
     pub unsafe fn pop<T>(&self, alloc: *mut MaybeUninit<T>) {
-        if self.bounded_stack.contains_allocated(alloc) {
+        let n = get_rounded_size::<AlignAs, T>();
+        if self.bounded_stack.contains_allocated(alloc.cast(), n) {
             // SAFETY:
             // - `contains_allocated` returned `true`, so either the element is allocated on the
             //   stack or it's a ZST. ZST allocation always succeeds, so this must be on the stack.
-            //   By the safety requirements, it's the top element of the stack and has type `T`.
-            // - The element is not accessed after the call.
+            //   By the safety requirements, it's the top element of the stack, thus there are at
+            //   least `n` bytes.
+            // - The element is not accessed after the call by a transitive requirement.
             unsafe {
-                self.bounded_stack.pop_unchecked::<T>();
+                self.bounded_stack.pop_unchecked(n);
             }
         } else {
             // SAFETY: `contains_allocated` returned `false`, so the allocation is not on the stack.
@@ -93,15 +101,15 @@ impl<AlignAs> Stack<AlignAs> {
     ///   address, and provenance).
     /// - The element is not accessed after the call to `replace_last`.
     pub unsafe fn replace_last<T, U>(&self, alloc: *mut MaybeUninit<T>) -> &mut MaybeUninit<U> {
-        let old_size = BoundedStack::<AlignAs, CAPACITY>::get_aligned_size::<T>();
-        let new_size = BoundedStack::<AlignAs, CAPACITY>::get_aligned_size::<U>();
-        if self.bounded_stack.contains_allocated::<T>(alloc.cast()) {
+        let old_n = get_rounded_size::<AlignAs, T>();
+        let new_n = get_rounded_size::<AlignAs, U>();
+        if self.bounded_stack.contains_allocated(alloc.cast(), old_n) {
             unsafe {
-                self.bounded_stack.pop_unchecked::<T>();
+                self.bounded_stack.pop_unchecked(old_n);
             }
-            if new_size <= old_size {
+            if new_n <= old_n {
                 // Necessarily fits in local data
-                unsafe { self.bounded_stack.try_push::<U>().unwrap_unchecked() };
+                unsafe { self.bounded_stack.try_push(new_n).unwrap_unchecked() };
                 return unsafe { &mut *alloc.cast::<MaybeUninit<U>>() };
             }
         } else {
@@ -114,7 +122,7 @@ impl<AlignAs> Stack<AlignAs> {
                 let _ = Box::from_raw(alloc);
             }
             // Can't fit in local data
-            if new_size > old_size {
+            if new_n > old_n {
                 return Box::leak(Box::new(MaybeUninit::uninit()));
             }
         }
@@ -137,10 +145,12 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The element is recoverable.
     #[expect(clippy::mut_from_ref)]
     pub unsafe fn recover_last_mut<T>(&self) -> &mut MaybeUninit<T> {
-        // SAFETY: as the element is recoverable, it must have been allocated on the stack, thus the
-        // call to `last_mut` is valid given that other requirements hold (which hey do, as we just
-        // forward them).
-        unsafe { self.bounded_stack.last_mut() }
+        let n = get_rounded_size::<AlignAs, T>();
+        // SAFETY: As the element is recoverable, it must have been allocated on the stack. Thus
+        // there are at least `n` bytes allocated.
+        let ptr = unsafe { self.bounded_stack.last_mut(n) };
+        // SAFETY: `ptr` points at a valid allocation of `T`, unique by the safety requirement.
+        unsafe { &mut *ptr.cast() }
     }
 
     /// Check whether an element reference can be recovered.
@@ -151,6 +161,7 @@ impl<AlignAs> Stack<AlignAs> {
     /// If `ptr` wasn't produced by `push`, `replace_last`, or `recover_last_mut`, the return value
     /// is unspecified.
     pub fn is_recoverable<T>(&self, ptr: *const T) -> bool {
-        self.bounded_stack.contains_allocated(ptr)
+        let n = get_rounded_size::<AlignAs, T>();
+        self.bounded_stack.contains_allocated(ptr.cast(), n)
     }
 }
