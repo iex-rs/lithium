@@ -52,8 +52,8 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         }
 
         // SAFETY: len is in-bounds for data by the invariant
-        let ptr: *const UnsafeCell<MaybeUninit<T>> =
-            unsafe { self.data.get().byte_add(self.len.get()) }.cast();
+        let ptr = unsafe { self.data.get().byte_add(self.len.get()) };
+        let ptr: *const UnsafeCell<MaybeUninit<T>> = ptr.cast();
 
         let ptr: *mut MaybeUninit<T> = UnsafeCell::raw_get(ptr);
 
@@ -111,6 +111,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     /// - The stack is non-empty.
     /// - The top element has type `T` (but not necessarily initialized).
     /// - No references to the top element exist.
+    #[expect(clippy::mut_from_ref)]
     pub unsafe fn last_mut<T>(&self) -> &mut MaybeUninit<T> {
         let size = Self::get_aligned_size::<T>();
 
@@ -118,8 +119,8 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         let offset = unsafe { self.len.get().unchecked_sub(size) };
 
         // SAFETY: offset is in-bounds because offset <= len <= CAPACITY
-        let ptr: *const UnsafeCell<MaybeUninit<T>> =
-            unsafe { self.data.get().byte_add(offset) }.cast();
+        let ptr = unsafe { self.data.get().byte_add(offset) };
+        let ptr: *const UnsafeCell<MaybeUninit<T>> = ptr.cast();
 
         let ptr: *mut MaybeUninit<T> = UnsafeCell::raw_get(ptr);
 
