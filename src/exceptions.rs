@@ -72,8 +72,8 @@ pub fn push<E>(cause: E) -> *mut Exception<E> {
 /// # Safety
 ///
 /// The caller must ensure `ex` corresponds to the exception at the top of the stack, as returned by
-/// [`push`], [`replace_last`], or [`recover_last`] with the same exception type. In addition, the
-/// exception must not be accessed after `pop`.
+/// [`push`] or [`replace_last`] with the same exception type. In addition, the exception must not]
+/// be accessed after `pop`.
 pub unsafe fn pop<E>(ex: *mut Exception<E>) {
     STACK.with(|stack| {
         // SAFETY: We require `ex` to be correctly obtained and unused after `pop`.
@@ -88,8 +88,8 @@ pub unsafe fn pop<E>(ex: *mut Exception<E>) {
 /// # Safety
 ///
 /// The caller must ensure `ex` corresponds to the exception at the top of the stack, as returned by
-/// [`push`], [`replace_last`], or [`recover_last`] with the same exception type. In addition, the
-/// old exception must not be accessed after `replace_last`.
+/// [`push`] or [`replace_last`] with the same exception type. In addition, the old exception must
+/// not be accessed after `replace_last`.
 pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
     STACK.with(|stack| {
         let ex: *mut Exception<F> =
@@ -103,27 +103,4 @@ pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Except
         }
         ex
     })
-}
-
-/// Get a pointer to the exception at the top of the stack.
-///
-/// # Safety
-///
-/// The caller must ensure the exception at the top of the stack is of type `E`, and that
-/// [`is_recoverable`] has returned true for this exception earlier.
-pub unsafe fn recover_last<E>() -> *mut Exception<E> {
-    STACK.with(|stack| {
-        // SAFETY: We ask the caller to verify that the exception is of the right type and is
-        // recoverable.
-        unsafe { stack.recover_last(get_alloc_size::<E>()) }.cast()
-    })
-}
-
-/// Check if an exception can be recovered with [`recover_last`].
-///
-/// If `ex` is a live return value of [`push`], [`replace_last`], or [`recover_last`], and this
-/// function returns `true`, [`recover_last`] can be used to obtain the value `ex` later from the
-/// type `E` alone, provided that `ex` is at the top of the stack at that moment.
-pub fn is_recoverable<E>(ex: *const Exception<E>) -> bool {
-    STACK.with(|stack| stack.is_recoverable(ex.cast(), get_alloc_size::<E>()))
 }

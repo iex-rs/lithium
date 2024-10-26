@@ -111,34 +111,4 @@ impl<AlignAs> Stack<AlignAs> {
         }
         self.push(new_n)
     }
-
-    /// Get a pointer to the top of the stack.
-    ///
-    /// This is only possible if the element is recoverable, that is, if [`Stack::is_recoverable`]
-    /// has returned true for the element.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that:
-    /// - The stack is non-empty.
-    /// - The top element is of size `n`.
-    /// - The element is recoverable.
-    ///
-    /// If the caller dereferences the pointer, it must separately ensure that no references alias.
-    pub unsafe fn recover_last(&self, n: usize) -> *mut u8 {
-        // SAFETY: As the element is recoverable, it must have been allocated on the stack. Thus
-        // there are at least `n` bytes allocated.
-        unsafe { self.bounded_stack.last_mut(n) }
-    }
-
-    /// Check whether an element reference can be recovered.
-    ///
-    /// If this function returns `true` for an element, [`Stack::recover_last`] can be used to
-    /// obtain a reference to this element when it's at the top.
-    ///
-    /// If `ptr` wasn't produced by `push`, `replace_last`, or `recover_last`, or if `n` is
-    /// mismatched, the return value is unspecified.
-    pub fn is_recoverable(&self, ptr: *const u8, n: usize) -> bool {
-        self.bounded_stack.contains_allocated(ptr, n)
-    }
 }

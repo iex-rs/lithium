@@ -102,28 +102,6 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         // - The previous allocation ends at len'
     }
 
-    /// Get a mutable pointer to the top `n` bytes of the stack.
-    ///
-    /// The return value points at the *first* of the `n` bytes.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the stack has at least `n` bytes allocated.
-    ///
-    /// Dereferencing the resulting pointer requires that the caller ensures it doesn't alias.
-    pub unsafe fn last_mut(&self, n: usize) -> *mut u8 {
-        if n == 0 {
-            return std::ptr::dangling_mut();
-        }
-
-        // SAFETY: len >= n by the safety requirement
-        let offset = unsafe { self.len.get().unchecked_sub(n) };
-
-        // SAFETY: offset is in-bounds because offset <= len <= CAPACITY
-        let ptr = unsafe { self.data.get().byte_add(offset) };
-        ptr.cast()
-    }
-
     /// Check whether an allocation is within the stack.
     ///
     /// If `ptr` was produced from allocating `n` bytes with this stack and the stack hasn't been

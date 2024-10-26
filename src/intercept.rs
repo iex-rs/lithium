@@ -25,10 +25,6 @@ impl<E> Drop for InFlightException<E> {
 }
 
 impl<E> InFlightException<E> {
-    pub(crate) unsafe fn new(ex: *mut Exception<E>) -> Self {
-        Self { ex }
-    }
-
     /// Throw a new exception by reusing the existing context.
     ///
     /// See [`intercept`] docs for examples and safety notes.
