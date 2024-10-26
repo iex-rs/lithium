@@ -53,7 +53,8 @@ impl<E> InFlightException<E> {
 ///
 /// # Safety
 ///
-/// See the safety section of [this module](super).
+/// `func` must only throw exceptions of type `E`. See the safety section of [this module](super)
+/// for more information.
 ///
 /// **In addition**, certain requirements are imposed on how the returned [`InFlightException`] is
 /// used. In particular, no exceptions may be thrown between the moment this function returns
@@ -101,7 +102,8 @@ impl<E> InFlightException<E> {
 #[inline]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
     unsafe { backend::intercept(func) }.map_err(|ex| {
-        let cause = unsafe { Exception::read_cause(ex) };
+        let ex_ref = unsafe { &*ex };
+        let cause = unsafe { ex_ref.cause() };
         (cause, InFlightException { ex })
     })
 }

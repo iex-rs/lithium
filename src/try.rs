@@ -14,7 +14,8 @@ use super::intercept;
 ///
 /// # Safety
 ///
-/// See the safety section of [this module](super).
+/// `func` must only throw exceptions of type `E`. See the safety section of [this module](super)
+/// for more information.
 ///
 /// # Example
 ///
@@ -31,5 +32,9 @@ use super::intercept;
 #[allow(clippy::missing_errors_doc)]
 #[inline]
 pub unsafe fn r#try<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
+    // SAFETY:
+    // - `func` only throws `E` by the safety requirement.
+    // - `InFlightException` is immediately dropped before returning from `try`, so no exceptions
+    //   may be thrown while it's alive.
     unsafe { intercept(func) }.map_err(|(cause, _)| cause)
 }

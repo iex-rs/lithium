@@ -19,9 +19,14 @@ impl<E> Exception<E> {
         }
     }
 
-    pub unsafe fn read_cause(ex: *mut Exception<E>) -> E {
-        let cause_ptr = unsafe { &raw mut (*ex).cause.0 };
-        unsafe { cause_ptr.read_unaligned() }
+    /// Get the cause of the exception.
+    ///
+    /// # Safety
+    ///
+    /// This function returns a bitwise copy of the cause. This means that it can only be called
+    /// once on each exception.
+    pub unsafe fn cause(&self) -> E {
+        unsafe { (&raw const self.cause.0).read_unaligned() }
     }
 }
 
