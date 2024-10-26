@@ -80,13 +80,9 @@
     clippy::arithmetic_side_effects
 )]
 
+mod api;
 mod backend;
 mod exceptions;
 mod heterogeneous_stack;
-mod intercept;
-mod throw;
-mod r#try;
 
-pub use intercept::{intercept, InFlightException};
-pub use r#try::r#try;
-pub use throw::throw;
+pub use api::{intercept, r#try, throw, InFlightException};

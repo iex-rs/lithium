@@ -1,8 +1,84 @@
 use super::{
     backend::{ActiveBackend, Backend},
-    exceptions::{pop, replace_last, Exception},
+    exceptions::{pop, push, replace_last, Exception},
 };
 use core::mem::ManuallyDrop;
+
+/// Throw an exception.
+///
+/// If uncaught, exceptions eventually terminate the process or the thread.
+///
+/// # Safety
+///
+/// See the safety section of [this module](super) for information on matching types.
+///
+/// In addition, the caller must ensure that the exception can only be caught by Lithium functions
+/// and not by the system runtime. The list of banned functions includes
+/// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
+///
+/// For this reason, the caller must ensure no frames between [`throw`] and
+/// [`catch`](super::catch()) can catch the exception. This includes not passing throwing callbacks
+/// to foreign crates, but also not using [`throw`] in own code that might
+/// [`intercept`](super::intercept()) an exception without cooperation with the throwing side.
+///
+/// # Example
+///
+/// ```should_panic
+/// use lithium::*;
+///
+/// unsafe {
+///     throw::<&'static str>("Oops!");
+/// }
+/// ```
+#[inline]
+pub unsafe fn throw<E>(cause: E) -> ! {
+    let ex = push(cause).cast();
+    // SAFETY:
+    // - The exception is a unique pointer to an exception object, as allocated by `push`.
+    // - "Don't mess with exceptions" is required transitively.
+    unsafe {
+        ActiveBackend::throw(ex);
+    }
+}
+
+/// Catch an exception.
+///
+/// If `func` returns a value, this function wraps it in [`Ok`].
+///
+/// If `func` throws an exception, this function returns it, wrapped it in [`Err`].
+///
+/// If you need to rethrow the exception, possibly modifying it in the process, consider using the
+/// more efficient [`intercept`](intercept()) function instead of pairing [`try`](try()) with
+/// [`throw`](super::throw()).
+///
+/// Rust panics are propagated as-is and not caught.
+///
+/// # Safety
+///
+/// `func` must only throw exceptions of type `E`. See the safety section of [this module](super)
+/// for more information.
+///
+/// # Example
+///
+/// ```rust
+/// use lithium::*;
+///
+/// // SAFETY: the exception type matches
+/// let res = unsafe {
+///     r#try::<(), &'static str>(|| throw::<&'static str>("Oops!"))
+/// };
+///
+/// assert_eq!(res, Err("Oops!"));
+/// ```
+#[allow(clippy::missing_errors_doc)]
+#[inline]
+pub unsafe fn r#try<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
+    // SAFETY:
+    // - `func` only throws `E` by the safety requirement.
+    // - `InFlightException` is immediately dropped before returning from `try`, so no exceptions
+    //   may be thrown while it's alive.
+    unsafe { intercept(func) }.map_err(|(cause, _)| cause)
+}
 
 /// Not-quite-caught exception.
 ///
