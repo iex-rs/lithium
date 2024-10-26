@@ -19,9 +19,9 @@ use core::mem::ManuallyDrop;
 /// and not by the system runtime. The list of banned functions includes
 /// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
 ///
-/// For this reason, the caller must ensure no frames between [`throw`] and [`try`](try()) can catch
-/// the exception. This includes not passing throwing callbacks to foreign crates, but also not
-/// using [`throw`] in own code that might [`intercept`] an exception without cooperation with the
+/// For this reason, the caller must ensure no frames between [`throw`] and [`catch`] can catch the
+/// exception. This includes not passing throwing callbacks to foreign crates, but also not using
+/// [`throw`] in own code that might [`intercept`] an exception without cooperation with the
 /// throwing side.
 ///
 /// # Example
@@ -52,7 +52,7 @@ pub unsafe fn throw<E>(cause: E) -> ! {
 /// If `func` throws an exception, this function returns it, wrapped it in [`Err`].
 ///
 /// If you need to rethrow the exception, possibly modifying it in the process, consider using the
-/// more efficient [`intercept`] function instead of pairing [`try`](try()) with [`throw`].
+/// more efficient [`intercept`] function instead of pairing [`catch`] with [`throw`].
 ///
 /// Rust panics are propagated as-is and not caught.
 ///
@@ -68,17 +68,17 @@ pub unsafe fn throw<E>(cause: E) -> ! {
 ///
 /// // SAFETY: the exception type matches
 /// let res = unsafe {
-///     r#try::<(), &'static str>(|| throw::<&'static str>("Oops!"))
+///     catch::<(), &'static str>(|| throw::<&'static str>("Oops!"))
 /// };
 ///
 /// assert_eq!(res, Err("Oops!"));
 /// ```
 #[allow(clippy::missing_errors_doc)]
 #[inline]
-pub unsafe fn r#try<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
+pub unsafe fn catch<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
     // SAFETY:
     // - `func` only throws `E` by the safety requirement.
-    // - `InFlightException` is immediately dropped before returning from `try`, so no exceptions
+    // - `InFlightException` is immediately dropped before returning from `catch`, so no exceptions
     //   may be thrown while it's alive.
     unsafe { intercept(func) }.map_err(|(cause, _)| cause)
 }
@@ -122,10 +122,10 @@ impl<E> InFlightException<E> {
     /// functions and not by the system runtime. The list of banned functions includes
     /// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
     ///
-    /// For this reason, the caller must ensure no frames between `rethrow` and [`try`](try()) can
-    /// catch the exception. This includes not passing throwing callbacks to foreign crates, but
-    /// also not using `rethrow` in own code that might [`intercept`] an exception without
-    /// cooperation with the throwing side.
+    /// For this reason, the caller must ensure no frames between `rethrow` and [`catch`] can catch
+    /// the exception. This includes not passing throwing callbacks to foreign crates, but also not
+    /// using `rethrow` in own code that might [`intercept`] an exception without cooperation with
+    /// the throwing side.
     #[inline]
     pub unsafe fn rethrow<F>(self, new_cause: F) -> ! {
         let ex = ManuallyDrop::new(self);
@@ -151,8 +151,8 @@ impl<E> InFlightException<E> {
 /// in [`Err`]. This handle can be used to rethrow the exception, possibly modifying its value or
 /// type in the process.
 ///
-/// If you always need to catch the exception, use [`try`](try()) instead. This function is mostly
-/// useful as an analogue of [`Result::map_err`].
+/// If you always need to catch the exception, use [`catch`] instead. This function is mostly useful
+/// as an analogue of [`Result::map_err`].
 ///
 /// Rust panics are propagated as-is and not caught.
 ///
@@ -201,7 +201,7 @@ impl<E> InFlightException<E> {
 /// }
 ///
 /// // SAFETY: g only ever throws Error
-/// println!("{}", unsafe { r#try::<_, Error>(|| g()) }.unwrap_err());
+/// println!("{}", unsafe { catch::<_, Error>(|| g()) }.unwrap_err());
 /// ```
 #[allow(clippy::missing_errors_doc)]
 #[inline]
