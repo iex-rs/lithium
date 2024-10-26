@@ -1,5 +1,4 @@
-use super::{align::get_rounded_size, array::Stack as BoundedStack};
-use core::alloc::Layout;
+use super::{align::get_rounded_size, array::Stack as BoundedStack, heap::Heap};
 use core::mem::MaybeUninit;
 
 const CAPACITY: usize = 4096;
@@ -9,6 +8,7 @@ const CAPACITY: usize = 4096;
 // - ZSTs are always allocated on the bounded stack.
 pub struct Stack<AlignAs> {
     bounded_stack: BoundedStack<AlignAs, CAPACITY>,
+    heap: Heap<AlignAs>,
 }
 
 impl<AlignAs> Stack<AlignAs> {
@@ -16,6 +16,7 @@ impl<AlignAs> Stack<AlignAs> {
     pub const fn new() -> Self {
         Self {
             bounded_stack: BoundedStack::new(),
+            heap: Heap::new(),
         }
     }
 
@@ -30,15 +31,14 @@ impl<AlignAs> Stack<AlignAs> {
     /// This function panics if allocating the object fails.
     pub fn push<T>(&self) -> &mut MaybeUninit<T> {
         let n = get_rounded_size::<AlignAs, T>();
-        match self.bounded_stack.try_push(n) {
-            Some(alloc) => {
-                // SAFETY:
-                // - The pointer is aligned for `T` thanks to `get_rounded_size`.
-                // - The pointer is valid for writes and doesn't alias by guarantees of `try_push`.
-                unsafe { &mut *alloc.cast::<MaybeUninit<T>>() }
-            }
-            None => Box::leak(Box::new(MaybeUninit::uninit())),
-        }
+        let ptr = self
+            .bounded_stack
+            .try_push(n)
+            .unwrap_or_else(|| self.heap.alloc(n));
+        // SAFETY:
+        // - The pointer is aligned for `T` thanks to `get_rounded_size`.
+        // - The pointer is valid for writes and doesn't alias by guarantees of `try_push`/`alloc`.
+        unsafe { &mut *ptr.cast::<MaybeUninit<T>>() }
     }
 
     /// Remove an element from the top of the stack.
@@ -55,9 +55,10 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The passed pointer corresponds to the top element of the stack (i.e. has a matching type,
     ///   address, and provenance).
     /// - The element is not accessed after the call to `pop`.
-    pub unsafe fn pop<T>(&self, alloc: *mut MaybeUninit<T>) {
+    pub unsafe fn pop<T>(&self, ptr: *mut MaybeUninit<T>) {
         let n = get_rounded_size::<AlignAs, T>();
-        if self.bounded_stack.contains_allocated(alloc.cast(), n) {
+        let ptr = ptr.cast();
+        if self.bounded_stack.contains_allocated(ptr, n) {
             // SAFETY:
             // - `contains_allocated` returned `true`, so either the element is allocated on the
             //   stack or it's a ZST. ZST allocation always succeeds, so this must be on the stack.
@@ -70,9 +71,9 @@ impl<AlignAs> Stack<AlignAs> {
         } else {
             // SAFETY: `contains_allocated` returned `false`, so the allocation is not on the stack.
             // By the requirements, the pointer was produced by `push`, so the allocation has to be
-            // on the heap with `Box`.
+            // on the heap.
             unsafe {
-                let _ = Box::from_raw(alloc);
+                self.heap.dealloc(ptr, n);
             }
         }
     }
@@ -82,7 +83,7 @@ impl<AlignAs> Stack<AlignAs> {
     /// This is a more efficient version of
     ///
     /// ```no_compile
-    /// stack.pop(alloc);
+    /// stack.pop(ptr);
     /// stack.push()
     /// ```
     ///
@@ -100,30 +101,29 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The passed pointer corresponds to the top element of the stack (i.e. has a matching type,
     ///   address, and provenance).
     /// - The element is not accessed after the call to `replace_last`.
-    pub unsafe fn replace_last<T, U>(&self, alloc: *mut MaybeUninit<T>) -> &mut MaybeUninit<U> {
+    pub unsafe fn replace_last<T, U>(&self, ptr: *mut MaybeUninit<T>) -> &mut MaybeUninit<U> {
         let old_n = get_rounded_size::<AlignAs, T>();
         let new_n = get_rounded_size::<AlignAs, U>();
-        if self.bounded_stack.contains_allocated(alloc.cast(), old_n) {
+        if self.bounded_stack.contains_allocated(ptr.cast(), old_n) {
             unsafe {
                 self.bounded_stack.pop_unchecked(old_n);
             }
             if new_n <= old_n {
                 // Necessarily fits in local data
                 unsafe { self.bounded_stack.try_push(new_n).unwrap_unchecked() };
-                return unsafe { &mut *alloc.cast::<MaybeUninit<U>>() };
+                return unsafe { &mut *ptr.cast() };
             }
         } else {
-            // Box<T>'s are compatible as long as Ts have identical layouts. Which is a good thing,
-            // because that's a lot easier to check than type equality.
-            if Layout::new::<T>() == Layout::new::<U>() {
-                return unsafe { &mut *alloc.cast::<MaybeUninit<U>>() };
+            if old_n == new_n {
+                // Can reuse the allocation
+                return unsafe { &mut *ptr.cast() };
             }
             unsafe {
-                let _ = Box::from_raw(alloc);
+                self.heap.dealloc(ptr.cast(), old_n);
             }
             // Can't fit in local data
             if new_n > old_n {
-                return Box::leak(Box::new(MaybeUninit::uninit()));
+                return unsafe { &mut *self.heap.alloc(new_n).cast() };
             }
         }
         self.push::<U>()

@@ -33,12 +33,15 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
 
     /// Allocate `n` bytes.
     ///
-    /// `n` must be a multiple of `align_of::<AlignAs>()`. The returned pointer is guaranteed to be
-    /// aligned to `align_of::<AlignAs>()` and valid for reads/writes for `n` bytes. It is also
-    /// guaranteed to be unique.
+    /// The returned pointer is guaranteed to be aligned to `align_of::<AlignAs>()` and valid for
+    /// reads/writes for `n` bytes. It is also guaranteed to be unique.
     ///
     /// Returns `None` if there isn't enough space. It is guaranteed that allocation always succeeds
     /// if there's at least `n` free capacity. In particular, allocating 0 bytes always succeeds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n` is not a multiple of `align_of::<AlignAs>()`.
     pub fn try_push(&self, n: usize) -> Option<*mut u8> {
         assert!(n % align_of::<AlignAs>() == 0);
 
@@ -76,7 +79,9 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
 
     /// Remove bytes from the top of the stack.
     ///
-    /// `n` must be a multiple of `align_of::<AlignAs>()`.
+    /// # Panics
+    ///
+    /// Panics if `n` is not a multiple of `align_of::<AlignAs>()`.
     ///
     /// # Safety
     ///
