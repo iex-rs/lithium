@@ -1,4 +1,7 @@
-use super::{backend, exception::Exception, stack_allocator};
+use super::{
+    backend,
+    exceptions::{is_recoverable, pop, replace_last, Exception},
+};
 
 /// Not-quite-caught exception.
 ///
@@ -16,7 +19,7 @@ impl<E> Drop for InFlightException<E> {
     /// Drop the exception, stopping Lithium unwinding.
     #[inline]
     fn drop(&mut self) {
-        unsafe { stack_allocator::pop(self.ex) }
+        unsafe { pop(self.ex) }
     }
 }
 
@@ -26,8 +29,8 @@ impl<E> InFlightException<E> {
     /// See [`intercept`] docs for examples and safety notes.
     #[inline]
     pub fn rethrow<F>(self, new_cause: F) -> ! {
-        let ex = unsafe { stack_allocator::replace_last(self.ex, new_cause) };
-        let is_recoverable = stack_allocator::is_recoverable(ex);
+        let ex = unsafe { replace_last(self.ex, new_cause) };
+        let is_recoverable = is_recoverable(ex);
         core::mem::forget(self);
         unsafe {
             backend::throw(is_recoverable, ex);

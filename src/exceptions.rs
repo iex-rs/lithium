@@ -1,0 +1,119 @@
+use super::{backend::Header, heterogeneous_stack::unbounded::Stack};
+
+/// An exception object, to be used by the backend.
+#[repr(C)] // header must be the first field
+pub struct Exception<E> {
+    header: Header,
+    cause: Unaligned<E>,
+}
+
+#[repr(packed)]
+struct Unaligned<T>(T);
+
+impl<E> Exception<E> {
+    /// Create a new exception to be thrown.
+    fn new(cause: E) -> Self {
+        Self {
+            header: Header::new(),
+            cause: Unaligned(cause),
+        }
+    }
+
+    pub unsafe fn read_cause(ex: *mut Exception<E>) -> E {
+        let cause_ptr = unsafe { &raw mut (*ex).cause.0 };
+        unsafe { cause_ptr.read_unaligned() }
+    }
+}
+
+thread_local! {
+    /// Thread-local exception stack.
+    static STACK: Stack<Header> = const { Stack::new() };
+}
+
+fn get_alloc_size<E>() -> usize {
+    const {
+        assert!(
+            align_of::<Exception<E>>() == align_of::<Header>(),
+            "Exception<E> has unexpected alignment",
+        );
+    }
+    // This is a multiple of align_of::<Exception<E>>(), which we've just checked to be equal to the
+    // alignment used for the stack.
+    size_of::<Exception<E>>()
+}
+
+/// Push an exception onto the thread-local exception stack.
+pub fn push<E>(cause: E) -> *mut Exception<E> {
+    STACK.with(|stack| {
+        let ex: *mut Exception<E> = stack.push(get_alloc_size::<E>()).cast();
+        // SAFETY:
+        // - The stack allocator guarantees the pointer is dereferenceable and unique.
+        // - The stack is configured to align like Header, which get_alloc_size verifies to be the
+        //   alignment of Exception<E>.
+        unsafe {
+            ex.write(Exception::new(cause));
+        }
+        ex
+    })
+}
+
+/// Remove an exception from the thread-local exception stack.
+///
+/// # Safety
+///
+/// The caller must ensure `ex` corresponds to the exception at the top of the stack, as returned by
+/// [`push`], [`replace_last`], or [`recover_last`] with the same exception type. In addition, the
+/// exception must not be accessed after `pop`.
+pub unsafe fn pop<E>(ex: *mut Exception<E>) {
+    STACK.with(|stack| {
+        // SAFETY: We require `ex` to be correctly obtained and unused after `pop`.
+        unsafe {
+            stack.pop(ex.cast(), get_alloc_size::<E>());
+        }
+    });
+}
+
+/// Replace the exception on the top of the thread-local exception stack.
+///
+/// # Safety
+///
+/// The caller must ensure `ex` corresponds to the exception at the top of the stack, as returned by
+/// [`push`], [`replace_last`], or [`recover_last`] with the same exception type. In addition, the
+/// old exception must not be accessed after `replace_last`.
+pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
+    STACK.with(|stack| {
+        let ex: *mut Exception<F> =
+            // SAFETY: We require `ex` to be correctly obtained and unused after `replace_last`.
+            unsafe { stack.replace_last(ex.cast(), get_alloc_size::<E>(), get_alloc_size::<F>()) }
+                .cast();
+        // SAFETY: `replace_last` returns unique aligned storage, good for Exception<F> as per the
+        // return value of `get_alloc_size`.
+        unsafe {
+            ex.write(Exception::new(cause));
+        }
+        ex
+    })
+}
+
+/// Get a pointer to the exception at the top of the stack.
+///
+/// # Safety
+///
+/// The caller must ensure the exception at the top of the stack is of type `E`, and that
+/// [`is_recoverable`] has returned true for this exception earlier.
+pub unsafe fn recover_last<E>() -> *mut Exception<E> {
+    STACK.with(|stack| {
+        // SAFETY: We ask the caller to verify that the exception is of the right type and is
+        // recoverable.
+        unsafe { stack.recover_last(get_alloc_size::<E>()) }.cast()
+    })
+}
+
+/// Check if an exception can be recovered with [`recover_last`].
+///
+/// If `ex` is a live return value of [`push`], [`replace_last`], or [`recover_last`], and this
+/// function returns `true`, [`recover_last`] can be used to obtain the value `ex` later from the
+/// type `E` alone, provided that `ex` is at the top of the stack at that moment.
+pub fn is_recoverable<E>(ex: *const Exception<E>) -> bool {
+    STACK.with(|stack| stack.is_recoverable(ex.cast(), get_alloc_size::<E>()))
+}

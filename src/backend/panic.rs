@@ -1,4 +1,4 @@
-use super::{exception::Exception, stack_allocator};
+use super::exceptions::{recover_last, Exception};
 use std::any::Any;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 
@@ -6,8 +6,6 @@ pub struct StackPanicException;
 
 #[repr(C)]
 pub struct Header;
-
-pub type AlignAs = ();
 
 impl Header {
     pub fn new() -> Self {
@@ -33,7 +31,7 @@ pub unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, *mut
         Ok(value) => Ok(value),
         Err(ex) => {
             if ex.is::<StackPanicException>() {
-                Err(unsafe { stack_allocator::last_local::<E>() })
+                Err(unsafe { recover_last::<E>() })
             } else if (*ex).type_id() == typeid::of::<Exception<E>>() {
                 Err(Box::into_raw(ex).cast())
             } else {

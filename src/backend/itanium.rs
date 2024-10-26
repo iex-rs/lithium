@@ -1,4 +1,4 @@
-use super::exception::Exception;
+use super::exceptions::Exception;
 use core::mem::{ManuallyDrop, MaybeUninit};
 
 extern "C-unwind" {
@@ -13,8 +13,6 @@ pub struct Header {
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
     private: MaybeUninit<[*const (); 2]>,
 }
-
-pub type AlignAs = Header;
 
 impl Header {
     pub fn new() -> Self {

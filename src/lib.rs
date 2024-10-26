@@ -88,10 +88,9 @@ mod backend;
 #[path = "backend/panic.rs"]
 mod backend;
 
-mod exception;
+mod exceptions;
 mod heterogeneous_stack;
 mod intercept;
-mod stack_allocator;
 mod throw;
 mod r#try;
 

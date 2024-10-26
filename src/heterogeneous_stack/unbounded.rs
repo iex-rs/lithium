@@ -1,8 +1,11 @@
-use super::{align::get_rounded_size, array::Stack as BoundedStack, heap::Heap};
+use super::{align::assert_aligned, array::Stack as BoundedStack, heap::Heap};
 
 const CAPACITY: usize = 4096;
 
 /// A thread-unsafe heterogeneous stack, using statically allocated space when possible.
+///
+/// Although the stack doesn't track runtime types, all elements are considered independent. Stack
+/// operations must be consistent, i.e. pushing 2 bytes and then popping 1 byte twice is unsound.
 // Safety invariants:
 // - ZSTs are always allocated on the bounded stack.
 pub struct Stack<AlignAs> {
@@ -19,43 +22,31 @@ impl<AlignAs> Stack<AlignAs> {
         }
     }
 
-    /// Allocate enough space for an instance of `T`, returning a pointer to the new instance.
+    /// Push an `n`-byte object.
     ///
-    /// `T` must be no more aligned than `AlignAs`. This is checked statically.
-    ///
-    /// The pointer is guaranteed to be aligned and valid, but will point at an uninitialized value.
+    /// The returned pointer is guaranteed to be aligned to `align_of::<AlignAs>()` and valid for
+    /// reads/writes for `n` bytes. It is also guaranteed to be unique.
     ///
     /// # Panics
     ///
-    /// This function panics if allocating the object fails.
-    pub fn push<T>(&self) -> *mut T {
-        let n = get_rounded_size::<AlignAs, T>();
-        let ptr = self
-            .bounded_stack
+    /// Panics if `n` is not a multiple of `align_of::<AlignAs>()` or if allocating the object
+    /// fails.
+    pub fn push(&self, n: usize) -> *mut u8 {
+        self.bounded_stack
             .try_push(n)
-            .unwrap_or_else(|| self.heap.alloc(n));
-        // - The pointer is aligned for `T` thanks to `get_rounded_size`.
-        // - The pointer is valid for writes and doesn't alias by guarantees of `try_push`/`alloc`.
-        ptr.cast()
+            .unwrap_or_else(|| self.heap.alloc(n))
     }
 
-    /// Remove an element from the top of the stack.
-    ///
-    /// The element is not dropped, so it may be uninitialized. If the value needs to be dropped, do
-    /// that manually.
-    ///
-    /// `T` must be no more aligned than `AlignAs`. This is checked statically.
+    /// Remove an `n`-byte object from the top of the stack.
     ///
     /// # Safety
     ///
     /// The caller must ensure that:
     /// - The passed pointer was obtained from `push` to this instance of [`Stack`].
-    /// - The passed pointer corresponds to the top element of the stack (i.e. has a matching type,
-    ///   address, and provenance).
+    /// - The passed pointer corresponds to the top element of the stack, i.e. it has matching `n`,
+    ///   address, and provenance.
     /// - The element is not accessed after the call to `pop`.
-    pub unsafe fn pop<T>(&self, ptr: *mut T) {
-        let n = get_rounded_size::<AlignAs, T>();
-        let ptr = ptr.cast();
+    pub unsafe fn pop(&self, ptr: *mut u8, n: usize) {
         if self.bounded_stack.contains_allocated(ptr, n) {
             // SAFETY:
             // - `contains_allocated` returned `true`, so either the element is allocated on the
@@ -76,54 +67,51 @@ impl<AlignAs> Stack<AlignAs> {
         }
     }
 
-    /// Modify the last element, possibly changing its type.
+    /// Modify the last element, possibly changing its size.
     ///
     /// This is a more efficient version of
     ///
     /// ```no_compile
-    /// stack.pop(ptr);
-    /// stack.push()
+    /// stack.pop(ptr, old_n);
+    /// stack.push(new_n)
     /// ```
-    ///
-    /// Both `T` and `U` must be no more aligned than `AlignAs`. This is checked statically.
     ///
     /// # Panics
     ///
-    /// This function panics if allocating the object fails.
+    /// Panics if `new_n` is not a multiple of `align_of::<AlignAs>()` or if allocating the object
+    /// fails.
     ///
     /// # Safety
     ///
     /// The same considerations apply as to [`Stack::pop`]. The caller must ensure that:
     /// - The passed pointer was obtained from `push` (or `replace_last`) to this instance of
     ///   [`Stack`].
-    /// - The passed pointer corresponds to the top element of the stack (i.e. has a matching type,
+    /// - The passed pointer corresponds to the top element of the stack (i.e. has matching `old_n`,
     ///   address, and provenance).
     /// - The element is not accessed after the call to `replace_last`.
-    pub unsafe fn replace_last<T, U>(&self, ptr: *mut T) -> *mut U {
-        let old_n = get_rounded_size::<AlignAs, T>();
-        let new_n = get_rounded_size::<AlignAs, U>();
+    pub unsafe fn replace_last(&self, ptr: *mut u8, old_n: usize, new_n: usize) -> *mut u8 {
+        assert_aligned::<AlignAs>(new_n);
         if old_n == new_n {
             // Can reuse the allocation
-            return ptr.cast();
+            return ptr;
         }
-        let was_on_stack = self.bounded_stack.contains_allocated(ptr.cast(), old_n);
+        let was_on_stack = self.bounded_stack.contains_allocated(ptr, old_n);
         // SAFETY: Valid by transitive requirements.
         unsafe {
-            self.pop(ptr);
+            self.pop(ptr, old_n);
         }
         if was_on_stack && new_n < old_n {
             let ptr = self.bounded_stack.try_push(new_n);
             // SAFETY: If the previous allocation was on the stack and the new allocation is
             // smaller, it must necessarily succeed.
-            let ptr = unsafe { ptr.unwrap_unchecked() };
-            return ptr.cast();
+            return unsafe { ptr.unwrap_unchecked() };
         }
         if !was_on_stack && new_n > old_n {
             // If the previous allocation was on the heap and the new allocation is bigger, it won't
             // fit on stack either.
-            return self.heap.alloc(new_n).cast();
+            return self.heap.alloc(new_n);
         }
-        self.push::<U>()
+        self.push(new_n)
     }
 
     /// Get a pointer to the top of the stack.
@@ -131,33 +119,28 @@ impl<AlignAs> Stack<AlignAs> {
     /// This is only possible if the element is recoverable, that is, if [`Stack::is_recoverable`]
     /// has returned true for the element.
     ///
-    /// `T` must be no more aligned than `AlignAs`. This is checked statically.
-    ///
     /// # Safety
     ///
     /// The caller must ensure that:
     /// - The stack is non-empty.
-    /// - The top element has type `T` (but not necessarily initialized).
+    /// - The top element is of size `n`.
     /// - The element is recoverable.
     ///
     /// If the caller dereferences the pointer, it must separately ensure that no references alias.
-    pub unsafe fn recover_last_mut<T>(&self) -> *mut T {
-        let n = get_rounded_size::<AlignAs, T>();
+    pub unsafe fn recover_last(&self, n: usize) -> *mut u8 {
         // SAFETY: As the element is recoverable, it must have been allocated on the stack. Thus
         // there are at least `n` bytes allocated.
-        let ptr = unsafe { self.bounded_stack.last_mut(n) };
-        ptr.cast()
+        unsafe { self.bounded_stack.last_mut(n) }
     }
 
     /// Check whether an element reference can be recovered.
     ///
-    /// If this function returns `true` for an element, [`Stack::recover_last_mut`] can be used to
+    /// If this function returns `true` for an element, [`Stack::recover_last`] can be used to
     /// obtain a reference to this element when it's at the top.
     ///
-    /// If `ptr` wasn't produced by `push`, `replace_last`, or `recover_last_mut`, the return value
-    /// is unspecified.
-    pub fn is_recoverable<T>(&self, ptr: *const T) -> bool {
-        let n = get_rounded_size::<AlignAs, T>();
-        self.bounded_stack.contains_allocated(ptr.cast(), n)
+    /// If `ptr` wasn't produced by `push`, `replace_last`, or `recover_last`, or if `n` is
+    /// mismatched, the return value is unspecified.
+    pub fn is_recoverable(&self, ptr: *const u8, n: usize) -> bool {
+        self.bounded_stack.contains_allocated(ptr, n)
     }
 }

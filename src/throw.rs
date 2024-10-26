@@ -1,4 +1,7 @@
-use super::{backend, stack_allocator};
+use super::{
+    backend,
+    exceptions::{is_recoverable, push},
+};
 
 /// Throw an exception.
 ///
@@ -22,8 +25,8 @@ use super::{backend, stack_allocator};
 /// ```
 #[inline]
 pub unsafe fn throw<E>(cause: E) -> ! {
-    let ex = stack_allocator::push(cause);
-    let is_recoverable = stack_allocator::is_recoverable(ex);
+    let ex = push(cause);
+    let is_recoverable = is_recoverable(ex);
     unsafe {
         backend::throw(is_recoverable, ex);
     }
