@@ -9,9 +9,6 @@ pub struct Stack<AlignAs> {
     bounded_stack: BoundedStack<AlignAs, 4096>,
 }
 
-/// Whether the top element can be accessed without storing a reference.
-pub struct Recoverability(pub bool);
-
 impl<AlignAs> Stack<AlignAs> {
     /// Create an empty stack.
     pub const fn new() -> Self {
@@ -20,11 +17,7 @@ impl<AlignAs> Stack<AlignAs> {
         }
     }
 
-    /// Allocate enough space for an instance of `T`.
-    ///
-    /// This function returns a reference to the new instance, as well as a flag indicating whether
-    /// the reference can be recovered without storing the reference (see
-    /// [`Stack::recover_last_mut`]).
+    /// Allocate enough space for an instance of `T`, returning a reference to the new instance.
     ///
     /// `T` must be no more aligned than `AlignAs`. This is checked statically.
     ///
@@ -33,13 +26,10 @@ impl<AlignAs> Stack<AlignAs> {
     /// # Panics
     ///
     /// This function panics if allocating the object fails.
-    pub fn push<T>(&self) -> (&mut MaybeUninit<T>, Recoverability) {
+    pub fn push<T>(&self) -> &mut MaybeUninit<T> {
         match self.bounded_stack.try_push::<T>() {
-            Some(alloc) => (alloc, Recoverability(true)),
-            None => (
-                Box::leak(Box::new(MaybeUninit::uninit())),
-                Recoverability(false),
-            ),
+            Some(alloc) => alloc,
+            None => Box::leak(Box::new(MaybeUninit::uninit())),
         }
     }
 
@@ -88,6 +78,10 @@ impl<AlignAs> Stack<AlignAs> {
     ///
     /// Both `T` and `U` must be no more aligned than `AlignAs`. This is checked statically.
     ///
+    /// # Panics
+    ///
+    /// This function panics if allocating the object fails.
+    ///
     /// # Safety
     ///
     /// The same considerations apply as to [`Stack::pop`]. The caller must ensure that:
@@ -96,39 +90,27 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The passed pointer corresponds to the top element of the stack (i.e. has a matching type,
     ///   address, and provenance).
     /// - The element is not accessed after the call to `replace_last`.
-    pub unsafe fn replace_last<T, U>(
-        &self,
-        alloc: *mut MaybeUninit<T>,
-    ) -> (&mut MaybeUninit<U>, Recoverability) {
+    pub unsafe fn replace_last<T, U>(&self, alloc: *mut MaybeUninit<T>) -> &mut MaybeUninit<U> {
         if self.bounded_stack.contains_allocated::<T>(alloc.cast()) {
             unsafe {
                 self.bounded_stack.pop_unchecked::<T>();
             }
             if size_of::<U>() <= size_of::<T>() {
                 // Necessarily fits in local data
-                return (
-                    unsafe { self.bounded_stack.try_push().unwrap_unchecked() },
-                    Recoverability(true),
-                );
+                return unsafe { self.bounded_stack.try_push().unwrap_unchecked() };
             }
         } else {
             // Box<T>'s are compatible as long as Ts have identical layouts. Which is a good thing,
             // because that's a lot easier to check than type equality.
             if Layout::new::<T>() == Layout::new::<U>() {
-                return (
-                    unsafe { &mut *alloc.cast::<MaybeUninit<U>>() },
-                    Recoverability(false),
-                );
+                return unsafe { &mut *alloc.cast::<MaybeUninit<U>>() };
             }
             unsafe {
                 let _ = Box::from_raw(alloc);
             }
             // Can't fit in local data
             if size_of::<T>() >= size_of::<U>() {
-                return (
-                    Box::leak(Box::new(MaybeUninit::uninit())),
-                    Recoverability(false),
-                );
+                return Box::leak(Box::new(MaybeUninit::uninit()));
             }
         }
         self.push::<U>()
@@ -136,7 +118,8 @@ impl<AlignAs> Stack<AlignAs> {
 
     /// Get a mutable reference to the top of the stack.
     ///
-    /// This is only possible if the element is recoverable.
+    /// This is only possible if the element is recoverable, that is, if [`Stack::is_recoverable`]
+    /// has returned true for the element.
     ///
     /// `T` must be no more aligned than `AlignAs`. This is checked statically.
     ///
@@ -146,12 +129,23 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The stack is non-empty.
     /// - The top element has type `T` (but not necessarily initialized).
     /// - No references to the top element exist.
-    /// - When the element was pushed, `push` returned `Recoverability(true)`.
+    /// - The element is recoverable.
     #[expect(clippy::mut_from_ref)]
     pub unsafe fn recover_last_mut<T>(&self) -> &mut MaybeUninit<T> {
-        // SAFETY: If `push` returned `Recoverability(true)`, the value must have been allocated on
-        // the stack, this the call to `last_mut` is valid given that other requirements hold (which
-        // they do, as we just forward them).
+        // SAFETY: as the element is recoverable, it must have been allocated on the stack, thus the
+        // call to `last_mut` is valid given that other requirements hold (which hey do, as we just
+        // forward them).
         unsafe { self.bounded_stack.last_mut() }
+    }
+
+    /// Check whether an element reference can be recovered.
+    ///
+    /// If this function returns `true` for an element, [`Stack::recover_last_mut`] can be used to
+    /// obtain a reference to this element when it's at the top.
+    ///
+    /// If `ptr` wasn't produced by `push`, `replace_last`, or `recover_last_mut`, the return value
+    /// is unspecified.
+    pub fn is_recoverable<T>(&self, ptr: *const T) -> bool {
+        self.bounded_stack.contains_allocated(ptr)
     }
 }

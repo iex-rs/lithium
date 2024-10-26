@@ -5,14 +5,8 @@ thread_local! {
     static EXCEPTIONS: Stack<AlignAs> = const { Stack::new() };
 }
 
-pub fn push<E>(cause: E) -> (bool, *mut Exception<E>) {
-    EXCEPTIONS.with(|stack| {
-        let (ex, recoverability) = stack.push();
-        (
-            recoverability.0,
-            std::ptr::from_mut(ex.write(Exception::new(cause))),
-        )
-    })
+pub fn push<E>(cause: E) -> *mut Exception<E> {
+    EXCEPTIONS.with(|stack| std::ptr::from_mut(stack.push().write(Exception::new(cause))))
 }
 
 pub unsafe fn pop<E>(ex: *mut Exception<E>) {
@@ -21,15 +15,15 @@ pub unsafe fn pop<E>(ex: *mut Exception<E>) {
     });
 }
 
-pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> (bool, *mut Exception<F>) {
+pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
     EXCEPTIONS.with(|stack| {
-        let (ex, recoverability) =
-            unsafe { stack.replace_last(ex.cast::<MaybeUninit<Exception<E>>>()) };
-        (
-            recoverability.0,
-            std::ptr::from_mut(ex.write(Exception::new(cause))),
-        )
+        let ex = unsafe { stack.replace_last(ex.cast::<MaybeUninit<Exception<E>>>()) };
+        std::ptr::from_mut(ex.write(Exception::new(cause)))
     })
+}
+
+pub fn is_recoverable<E>(ptr: *const Exception<E>) -> bool {
+    EXCEPTIONS.with(|stack| stack.is_recoverable(ptr))
 }
 
 pub unsafe fn last_local<E>() -> *mut Exception<E> {

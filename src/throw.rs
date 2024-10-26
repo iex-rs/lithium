@@ -22,8 +22,9 @@ use super::{backend, stack_allocator};
 /// ```
 #[inline]
 pub unsafe fn throw<E>(cause: E) -> ! {
-    let (is_local, ex) = stack_allocator::push(cause);
+    let ex = stack_allocator::push(cause);
+    let is_recoverable = stack_allocator::is_recoverable(ex);
     unsafe {
-        backend::throw(is_local, ex);
+        backend::throw(is_recoverable, ex);
     }
 }

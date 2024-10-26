@@ -26,10 +26,11 @@ impl<E> InFlightException<E> {
     /// See [`intercept`] docs for examples and safety notes.
     #[inline]
     pub fn rethrow<F>(self, new_cause: F) -> ! {
-        let (is_local, ex) = unsafe { stack_allocator::replace_last(self.ex, new_cause) };
+        let ex = unsafe { stack_allocator::replace_last(self.ex, new_cause) };
+        let is_recoverable = stack_allocator::is_recoverable(ex);
         core::mem::forget(self);
         unsafe {
-            backend::throw(is_local, ex);
+            backend::throw(is_recoverable, ex);
         }
     }
 }
