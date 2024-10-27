@@ -18,6 +18,9 @@
 /// pointer (including provenance). The implementation may modify the header arbitrarily during
 /// unwinding, but modifying any other data from the same allocation is forbidden.
 ///
+/// The user of this trait is allowed to reuse the header when rethrowing exceptions. In particular,
+/// the return value of `intercept` may be used as an argument to `throw`.
+///
 /// Exceptions may not be ignored or caught twice.
 ///
 /// Note that several exceptions can co-exist at once, even in a single thread. This can happen if
