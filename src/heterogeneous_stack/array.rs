@@ -212,4 +212,19 @@ mod test {
         assert!(!stack.contains_allocated(core::ptr::null(), 1));
         assert!(!stack.contains_allocated(&*Box::new(1), 1));
     }
+
+    #[test]
+    fn unique() {
+        let stack = Stack::<u8, 256>::new();
+        let ptr1 = unsafe { &mut *stack.try_push(1).expect("failed to allocate") };
+        *ptr1 = 1;
+        let ptr2 = unsafe { &mut *stack.try_push(1).expect("failed to allocate") };
+        *ptr2 = 2;
+        assert_eq!(*ptr1, 1);
+        assert_eq!(*ptr2, 2);
+        unsafe {
+            stack.pop_unchecked(1);
+        }
+        assert_eq!(*ptr1, 1);
+    }
 }
