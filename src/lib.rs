@@ -73,6 +73,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), feature(thread_local))]
+#![cfg_attr(backend = "itanium", expect(internal_features))]
 #![cfg_attr(backend = "itanium", feature(core_intrinsics))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
