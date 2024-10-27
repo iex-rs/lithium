@@ -79,6 +79,7 @@ const fn get_alloc_size<E>() -> usize {
 }
 
 /// Push an exception onto the thread-local exception stack.
+#[expect(clippy::inline_always)]
 #[inline(always)]
 pub fn push<E>(cause: E) -> *mut Exception<E> {
     // SAFETY: We don't let the stack leak past the call frame.
