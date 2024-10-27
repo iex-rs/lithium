@@ -132,3 +132,35 @@ pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Except
     }
     ex
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn header_is_first_field() {
+        assert_eq!(core::mem::offset_of!(Exception::<u128>, header), 0);
+    }
+
+    #[test]
+    fn exception_cause() {
+        let mut ex = Exception::new(String::from("Hello, world!"));
+        assert_eq!(unsafe { ex.cause() }, "Hello, world!");
+    }
+
+    #[test]
+    fn stack() {
+        let ex1 = push(String::from("Hello, world!"));
+        let ex2 = push(123i32);
+        assert_eq!(unsafe { (*ex2).cause() }, 123);
+        let ex3 = unsafe { replace_last(ex2, "Third time's a charm") };
+        assert_eq!(unsafe { (*ex3).cause() }, "Third time's a charm");
+        unsafe {
+            pop(ex3);
+        }
+        assert_eq!(unsafe { (*ex1).cause() }, "Hello, world!");
+        unsafe {
+            pop(ex1);
+        }
+    }
+}
