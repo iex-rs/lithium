@@ -1,6 +1,7 @@
 use rustc_version::{version_meta, Channel};
 
 fn main() {
+    println!("cargo::rerun-if-env-changed=MIRIFLAGS");
     let is_miri = std::env::var_os("CARGO_CFG_MIRI").is_some();
     let is_tree_borrows =
         std::env::var("MIRIFLAGS").is_ok_and(|flags| flags.contains("-Zmiri-tree-borrows"));
