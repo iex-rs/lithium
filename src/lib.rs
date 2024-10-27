@@ -31,8 +31,11 @@
 //! - MinGW (GNU-like Windows)
 //! - WASM
 //!
+//! This mechanism works with `#![no_std]`, as long as the Itanium EH unwinder is linked in. Use
+//! `default-features = false` feature to enable no-std support.
+//!
 //! On stable, when compiled with MSVC on Windows, or on more exotic platforms, exception handling
-//! is gracefully degraded to Rust panics.
+//! is gracefully degraded to Rust panics. This requires `std`.
 //!
 //!
 //! # Safety
@@ -68,6 +71,8 @@
 //! used by the crate match, all safe user-supplied callbacks are sound to call, because safe
 //! callbacks can only interact with exceptions in an isolated manner.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), feature(thread_local))]
 #![cfg_attr(backend = "itanium", feature(core_intrinsics))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
@@ -124,6 +129,8 @@
     clippy::unused_result_ok,
     clippy::wildcard_enum_match_arm,
 )]
+
+extern crate alloc;
 
 mod api;
 mod backend;

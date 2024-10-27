@@ -69,8 +69,12 @@ pub unsafe trait Backend {
 #[path = "itanium.rs"]
 mod imp;
 
-#[cfg(backend = "panic")]
+#[cfg(all(backend = "panic", feature = "std"))]
 #[path = "panic.rs"]
+mod imp;
+
+#[cfg(all(backend = "panic", not(feature = "std")))]
+#[path = "unimplemented.rs"]
 mod imp;
 
 pub(crate) use imp::ActiveBackend;

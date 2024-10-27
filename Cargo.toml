@@ -5,7 +5,7 @@ license = "MIT"
 repository = "https://github.com/iex-rs/lithium"
 readme = "README.md"
 keywords = ["error", "error-handling", "exception"]
-categories = ["rust-patterns"]
+categories = ["rust-patterns", "no-std"]
 version = "0.1.0"
 edition = "2021"
 
@@ -23,6 +23,8 @@ anyhow = "1"
 typeid = "1.0.2"
 
 [features]
+default = ["std"]
+std = []
 sound-under-stacked-borrows = []
 
 [package.metadata."docs.rs"]

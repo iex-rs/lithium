@@ -1,7 +1,7 @@
 use super::align::assert_aligned;
+use alloc::alloc;
 use core::alloc::Layout;
 use core::marker::PhantomData;
-use std::alloc;
 
 /// A heap-backed allocator.
 ///

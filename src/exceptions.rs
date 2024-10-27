@@ -37,9 +37,21 @@ impl<E> Exception<E> {
     }
 }
 
+#[cfg(feature = "std")]
 thread_local! {
     /// Thread-local exception stack.
     static STACK: Stack<Header> = const { Stack::new() };
+}
+
+#[cfg(not(feature = "std"))]
+#[thread_local]
+static STACK: Stack<Header> = const { Stack::new() };
+
+fn with_stack<T>(f: impl FnOnce(&Stack<Header>) -> T) -> T {
+    #[cfg(feature = "std")]
+    return STACK.with(f);
+    #[cfg(not(feature = "std"))]
+    return f(&STACK);
 }
 
 const fn get_alloc_size<E>() -> usize {
@@ -56,7 +68,7 @@ const fn get_alloc_size<E>() -> usize {
 
 /// Push an exception onto the thread-local exception stack.
 pub fn push<E>(cause: E) -> *mut Exception<E> {
-    STACK.with(|stack| {
+    with_stack(|stack| {
         let ex: *mut Exception<E> = stack.push(get_alloc_size::<E>()).cast();
         // SAFETY:
         // - The stack allocator guarantees the pointer is dereferenceable and unique.
@@ -77,7 +89,7 @@ pub fn push<E>(cause: E) -> *mut Exception<E> {
 /// [`push`] or [`replace_last`] with the same exception type. In addition, the exception must not
 /// be accessed after `pop`.
 pub unsafe fn pop<E>(ex: *mut Exception<E>) {
-    STACK.with(|stack| {
+    with_stack(|stack| {
         // SAFETY: We require `ex` to be correctly obtained and unused after `pop`.
         unsafe {
             stack.pop(ex.cast(), get_alloc_size::<E>());
@@ -93,7 +105,7 @@ pub unsafe fn pop<E>(ex: *mut Exception<E>) {
 /// [`push`] or [`replace_last`] with the same exception type. In addition, the old exception must
 /// not be accessed after `replace_last`.
 pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
-    STACK.with(|stack| {
+    with_stack(|stack| {
         let ex: *mut Exception<F> =
             // SAFETY: We require `ex` to be correctly obtained and unused after `replace_last`.
             unsafe { stack.replace_last(ex.cast(), get_alloc_size::<E>(), get_alloc_size::<F>()) }

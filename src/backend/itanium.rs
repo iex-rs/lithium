@@ -114,10 +114,15 @@ pub struct Header {
 }
 
 unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
-    eprintln!(
-        "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.",
-    );
-    std::process::abort();
+    #[cfg(feature = "std")]
+    {
+        eprintln!(
+            "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.",
+        );
+        std::process::abort();
+    }
+    #[cfg(not(feature = "std"))]
+    core::intrinsics::abort();
 }
 
 extern "C-unwind" {
