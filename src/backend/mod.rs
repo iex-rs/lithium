@@ -33,8 +33,8 @@ pub unsafe trait Backend {
     /// An exception header.
     ///
     /// Allocated exceptions, as stored in the [`Exception`](super::exceptions::Exception) type,
-    /// will immediately begin with this header. This allows that exception pointers to be used with
-    /// ABIs that require exceptions to start with custom information, like Itanium EH ABI.
+    /// will contain this header. This allows exception pointers to be used with ABIs that require
+    /// exceptions to contain custom information, like Itanium EH ABI.
     type ExceptionHeader;
 
     /// Create a new exception header.
@@ -84,7 +84,7 @@ pub(crate) use imp::ActiveBackend;
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::exceptions::{pop, push};
+    use crate::exceptions::{pop, push, Exception};
 
     #[test]
     fn intercept_ok() {
@@ -96,9 +96,9 @@ mod test {
     fn intercept_err() {
         let ex = push(String::from("Hello, world!"));
         let result = ActiveBackend::intercept(|| unsafe {
-            ActiveBackend::throw(ex.cast());
+            ActiveBackend::throw(Exception::header(ex));
         });
-        let caught_ex = result.unwrap_err().cast();
+        let caught_ex = unsafe { Exception::from_header(result.unwrap_err()) };
         assert_eq!(caught_ex, ex);
         assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
         unsafe {
@@ -123,10 +123,10 @@ mod test {
         let ex = push(String::from("Hello, world!"));
         let result = ActiveBackend::intercept(|| {
             ActiveBackend::intercept(|| unsafe {
-                ActiveBackend::throw(ex.cast());
+                ActiveBackend::throw(Exception::header(ex));
             })
         });
-        let caught_ex = result.unwrap().unwrap_err().cast();
+        let caught_ex = unsafe { Exception::from_header(result.unwrap().unwrap_err()) };
         assert_eq!(caught_ex, ex);
         assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
         unsafe {
@@ -139,15 +139,15 @@ mod test {
         let ex1 = push(String::from("Hello, world!"));
         let result = ActiveBackend::intercept(|| {
             let result = ActiveBackend::intercept(|| unsafe {
-                ActiveBackend::throw(ex1.cast());
+                ActiveBackend::throw(Exception::header(ex1));
             });
             let ex2 = result.unwrap_err();
-            assert_eq!(ex1.cast(), ex2);
+            assert_eq!(unsafe { Exception::header(ex1) }, ex2);
             unsafe {
                 ActiveBackend::throw(ex2);
             }
         });
-        let caught_ex = result.unwrap_err().cast();
+        let caught_ex = unsafe { Exception::from_header(result.unwrap_err()) };
         assert_eq!(caught_ex, ex1);
         assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
         unsafe {
@@ -169,10 +169,10 @@ mod test {
         let result = ActiveBackend::intercept(|| {
             let _dropper = Dropper(&mut destructor_was_run);
             unsafe {
-                ActiveBackend::throw(ex1.cast());
+                ActiveBackend::throw(Exception::header(ex1));
             }
         });
-        let caught_ex1 = result.unwrap_err().cast();
+        let caught_ex1 = unsafe { Exception::from_header(result.unwrap_err()) };
         assert_eq!(caught_ex1, ex1);
         assert_eq!(unsafe { (*caught_ex1).cause() }, "Hello, world!");
         unsafe {
@@ -189,9 +189,9 @@ mod test {
             fn drop(&mut self) {
                 let ex2 = push(String::from("Awful idea"));
                 let result = ActiveBackend::intercept(|| unsafe {
-                    ActiveBackend::throw(ex2.cast());
+                    ActiveBackend::throw(Exception::header(ex2));
                 });
-                let caught_ex2 = result.unwrap_err().cast();
+                let caught_ex2 = unsafe { Exception::from_header(result.unwrap_err()) };
                 assert_eq!(caught_ex2, ex2);
                 assert_eq!(unsafe { (*caught_ex2).cause() }, "Awful idea");
                 unsafe {
@@ -204,10 +204,10 @@ mod test {
         let result = ActiveBackend::intercept(|| {
             let _dropper = Dropper;
             unsafe {
-                ActiveBackend::throw(ex1.cast());
+                ActiveBackend::throw(Exception::header(ex1));
             }
         });
-        let caught_ex1 = result.unwrap_err().cast();
+        let caught_ex1 = unsafe { Exception::from_header(result.unwrap_err()) };
         assert_eq!(caught_ex1, ex1);
         assert_eq!(unsafe { (*caught_ex1).cause() }, "Hello, world!");
         unsafe {

@@ -2,12 +2,11 @@ use super::{
     backend::{ActiveBackend, Backend},
     heterogeneous_stack::unbounded::Stack,
 };
-use core::mem::ManuallyDrop;
+use core::mem::{offset_of, ManuallyDrop};
 
 type Header = <ActiveBackend as Backend>::ExceptionHeader;
 
 /// An exception object, to be used by the backend.
-#[repr(C)] // header must be the first field
 pub struct Exception<E> {
     header: Header,
     cause: ManuallyDrop<Unaligned<E>>,
@@ -23,6 +22,27 @@ impl<E> Exception<E> {
             header: ActiveBackend::new_header(),
             cause: ManuallyDrop::new(Unaligned(cause)),
         }
+    }
+
+    /// Get pointer to header.
+    ///
+    /// # Safety
+    ///
+    /// `ex` must be a unique pointer at an exception object.
+    pub const unsafe fn header(ex: *mut Self) -> *mut Header {
+        // SAFETY: Required transitively.
+        unsafe { &raw mut (*ex).header }
+    }
+
+    /// Restore pointer from pointer to header.
+    ///
+    /// # Safery
+    ///
+    /// `header` must have been produced by [`Exception::header`], and the corresponding object must
+    /// be alive.
+    pub const unsafe fn from_header(header: *mut Header) -> *mut Self {
+        // SAFETY: Required transitively.
+        unsafe { header.byte_sub(offset_of!(Self, header)) }.cast()
     }
 
     /// Get the cause of the exception.

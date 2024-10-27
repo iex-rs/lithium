@@ -35,7 +35,9 @@ use core::mem::ManuallyDrop;
 /// ```
 #[inline(never)]
 pub unsafe fn throw<E>(cause: E) -> ! {
-    let ex = push(cause).cast();
+    let ex = push(cause);
+    // SAFETY: Just allocated.
+    let ex = unsafe { Exception::header(ex) };
     // SAFETY:
     // - The exception is a unique pointer to an exception object, as allocated by `push`.
     // - "Don't mess with exceptions" is required transitively.
@@ -131,7 +133,9 @@ impl<E> InFlightException<E> {
         let ex = ManuallyDrop::new(self);
         // SAFETY: The same logic that proves `pop` in `drop` is valid applies here. We're not
         // *really* dropping `self`, but the user code does not know that.
-        let ex = unsafe { replace_last(ex.ex, new_cause) }.cast();
+        let ex = unsafe { replace_last(ex.ex, new_cause) };
+        // SAFETY: Just allocated.
+        let ex = unsafe { Exception::header(ex) };
         // SAFETY:
         // - `ex` is a unique pointer to the exception object because it was just produced by
         //   `replace_last`.
@@ -207,10 +211,11 @@ impl<E> InFlightException<E> {
 #[inline]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
     ActiveBackend::intercept(func).map_err(|ex| {
-        let ex: *mut Exception<E> = ex.cast();
         // SAFETY: By the safety requirement, unwinding could only happen from `throw` with type
         // `E`. Backend guarantees the pointer is passed as-is, and `throw` only throws unique
         // pointers to valid instances of `Exception<E>` via the backend.
+        let ex = unsafe { Exception::<E>::from_header(ex) };
+        // SAFETY: Same as above.
         let ex_ref = unsafe { &mut *ex };
         // SAFETY: We only read the cause here once.
         let cause = unsafe { ex_ref.cause() };
