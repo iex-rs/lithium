@@ -73,6 +73,7 @@
 #![warn(
     clippy::cargo,
     clippy::pedantic,
+    clippy::missing_const_for_fn,
     clippy::multiple_unsafe_ops_per_block,
     clippy::undocumented_unsafe_blocks,
     clippy::missing_inline_in_public_items,

@@ -42,7 +42,7 @@ thread_local! {
     static STACK: Stack<Header> = const { Stack::new() };
 }
 
-fn get_alloc_size<E>() -> usize {
+const fn get_alloc_size<E>() -> usize {
     const {
         assert!(
             align_of::<Exception<E>>() == align_of::<Header>(),
