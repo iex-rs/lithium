@@ -56,3 +56,49 @@ impl<AlignAs> Heap<AlignAs> {
         unsafe { alloc::dealloc(ptr, layout) }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn alloc_zero() {
+        Heap::<u8>::new().alloc(0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn alloc_unaligned() {
+        Heap::<u16>::new().alloc(3);
+    }
+
+    #[test]
+    fn overaligned() {
+        #[repr(align(256))]
+        struct Overaligned;
+        let heap = Heap::<Overaligned>::new();
+        let ptr = heap.alloc(256);
+        assert_eq!(ptr.addr() % 256, 0);
+        unsafe {
+            heap.dealloc(ptr, 256);
+        }
+    }
+
+    #[test]
+    fn unique() {
+        let heap = Heap::<u8>::new();
+        let ptr1 = unsafe { &mut *heap.alloc(1) };
+        let ptr2 = unsafe { &mut *heap.alloc(1) };
+        *ptr1 = 1;
+        *ptr2 = 2;
+        assert_eq!(*ptr1, 1);
+        assert_eq!(*ptr2, 2);
+        unsafe {
+            heap.dealloc(ptr1, 1);
+        }
+        unsafe {
+            heap.dealloc(ptr2, 1);
+        }
+    }
+}
