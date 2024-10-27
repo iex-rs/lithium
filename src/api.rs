@@ -9,15 +9,13 @@ use core::mem::ManuallyDrop;
 
 /// Throw an exception.
 ///
-/// If uncaught, exceptions eventually terminate the process or the thread.
-///
 /// # Safety
 ///
 /// See the safety section of [this crate](crate) for information on matching types.
 ///
 /// In addition, the caller must ensure that the exception can only be caught by Lithium functions
 /// and not by the system runtime. The list of banned functions includes
-/// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
+/// [`std::panic::catch_unwind`] and [`std::thread::spawn`], as well as throwing from `main`.
 ///
 /// For this reason, the caller must ensure no frames between [`throw`] and [`catch`] can catch the
 /// exception. This includes not passing throwing callbacks to foreign crates, but also not using
