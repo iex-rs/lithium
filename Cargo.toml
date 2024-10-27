@@ -18,6 +18,8 @@ check-cfg = ["cfg(nightly)", "cfg(backend, values(\"itanium\", \"panic\"))"]
 
 [dev-dependencies]
 anyhow = "1"
+criterion = "0.4"
+replace_with = "0.1.7"
 
 [dependencies]
 typeid = "1.0.2"
@@ -29,3 +31,7 @@ sound-under-stacked-borrows = []
 
 [package.metadata."docs.rs"]
 all-features = true
+
+[[bench]]
+name = "bench"
+harness = false
