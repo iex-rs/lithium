@@ -22,7 +22,7 @@ impl<AlignAs> Heap<AlignAs> {
     ///
     /// # Panics
     ///
-    /// Panics if `n` is not a multiple of `align_of::<AlignAs>()` or `n` is 0.
+    /// Panics if `n` is not a multiple of `align_of::<AlignAs>()` or `n` is 0, or if out of memory.
     #[expect(clippy::unused_self)]
     pub fn alloc(&self, n: usize) -> *mut u8 {
         assert_aligned::<AlignAs>(n);
