@@ -16,5 +16,8 @@ anyhow = "1"
 [dependencies]
 typeid = "1.0.2"
 
+[features]
+sound-under-stacked-borrows = []
+
 [package.metadata."docs.rs"]
 all-features = true
