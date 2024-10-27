@@ -18,6 +18,8 @@
 /// pointer (including provenance). The implementation may modify the header arbitrarily during
 /// unwinding, but modifying any other data from the same allocation is forbidden.
 ///
+/// During unwinding, all destructors of locals must be run, as if `return` was called.
+///
 /// The user of this trait is allowed to reuse the header when rethrowing exceptions. In particular,
 /// the return value of `intercept` may be used as an argument to `throw`.
 ///
@@ -151,6 +153,33 @@ mod test {
         unsafe {
             pop(caught_ex);
         }
+    }
+
+    #[test]
+    fn destructors_are_run() {
+        struct Dropper<'a>(&'a mut bool);
+        impl Drop for Dropper<'_> {
+            fn drop(&mut self) {
+                *self.0 = true;
+            }
+        }
+
+        let mut destructor_was_run = false;
+        let ex1 = push(String::from("Hello, world!"));
+        let result = ActiveBackend::intercept(|| {
+            let _dropper = Dropper(&mut destructor_was_run);
+            unsafe {
+                ActiveBackend::throw(ex1.cast());
+            }
+        });
+        let caught_ex1 = result.unwrap_err().cast();
+        assert_eq!(caught_ex1, ex1);
+        assert_eq!(unsafe { (*caught_ex1).cause() }, "Hello, world!");
+        unsafe {
+            pop(caught_ex1);
+        }
+
+        assert!(destructor_was_run);
     }
 
     #[test]
