@@ -19,7 +19,7 @@ use core::mem::MaybeUninit;
 pub struct Stack<AlignAs, const CAPACITY: usize> {
     _align: [AlignAs; 0],
     data: UnsafeCell<[MaybeUninit<u8>; CAPACITY]>,
-    len: Cell<usize>,
+    pub(super) len: Cell<usize>,
 }
 
 impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
