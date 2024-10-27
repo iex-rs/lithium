@@ -49,7 +49,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         if n == 0 {
             // Dangling pointers to ZSTs are always valid and unique. Creating `*mut AlignAs`
             // instead of *mut u8` forces alignment.
-            return Some(std::ptr::dangling_mut::<AlignAs>().cast());
+            return Some(core::ptr::dangling_mut::<AlignAs>().cast());
         }
 
         // SAFETY: len <= CAPACITY is an invariant

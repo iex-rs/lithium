@@ -87,22 +87,22 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The passed pointer corresponds to the top element of the stack (i.e. has matching `old_n`,
     ///   address, and provenance).
     /// - The element is not accessed after the call to `replace_last`.
-    pub unsafe fn replace_last(&self, ptr: *mut u8, old_n: usize, new_n: usize) -> *mut u8 {
+    pub unsafe fn replace_last(&self, old_ptr: *mut u8, old_n: usize, new_n: usize) -> *mut u8 {
         assert_aligned::<AlignAs>(new_n);
         if old_n == new_n {
             // Can reuse the allocation
-            return ptr;
+            return old_ptr;
         }
-        let was_on_stack = self.bounded_stack.contains_allocated(ptr, old_n);
+        let was_on_stack = self.bounded_stack.contains_allocated(old_ptr, old_n);
         // SAFETY: Valid by transitive requirements.
         unsafe {
-            self.pop(ptr, old_n);
+            self.pop(old_ptr, old_n);
         }
         if was_on_stack && new_n < old_n {
-            let ptr = self.bounded_stack.try_push(new_n);
+            let new_ptr = self.bounded_stack.try_push(new_n);
             // SAFETY: If the previous allocation was on the stack and the new allocation is
             // smaller, it must necessarily succeed.
-            return unsafe { ptr.unwrap_unchecked() };
+            return unsafe { new_ptr.unwrap_unchecked() };
         }
         if !was_on_stack && new_n > old_n {
             // If the previous allocation was on the heap and the new allocation is bigger, it won't

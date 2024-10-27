@@ -1,5 +1,6 @@
 use super::Backend;
-use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+use core::panic::AssertUnwindSafe;
+use std::panic::{catch_unwind, resume_unwind};
 
 pub(crate) struct ActiveBackend;
 
@@ -9,7 +10,7 @@ pub(crate) struct ActiveBackend;
 /// whenever `panic = "unwind"` is enabled. It is less efficient than throwing exceptions manually,
 /// but it's the next best thing.
 ///
-/// What we can't affect performance-wise is the allocation of an _Unwind_Exception (at least on
+/// What we can't affect performance-wise is the allocation of an `_Unwind_Exception` (at least on
 /// Itanium), performed inside `std` with `Box`. What we *do* want to avoid is the allocation of
 /// `Box<dyn Any + Send + 'static>`, which stores the panic payload.
 ///

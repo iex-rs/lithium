@@ -26,7 +26,7 @@ impl<AlignAs> Heap<AlignAs> {
     #[expect(clippy::unused_self)]
     pub fn alloc(&self, n: usize) -> *mut u8 {
         assert_aligned::<AlignAs>(n);
-        assert!(n != 0);
+        assert_ne!(n, 0, "Allocating 0 bytes is invalid");
         let layout = Layout::from_size_align(n, align_of::<AlignAs>()).unwrap();
         // SAFETY: n != 0 has been checked
         unsafe { alloc::alloc(layout) }

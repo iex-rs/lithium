@@ -63,7 +63,7 @@ unsafe impl Backend for ActiveBackend {
                 (&raw mut data).cast(),
                 do_catch::<Func, R>,
             )
-        } == 0
+        } == 0i32
         {
             // SAFETY: If zero was returned, no unwinding happened, so `do_call` must have finished
             // till the assignment to `data.result`.
