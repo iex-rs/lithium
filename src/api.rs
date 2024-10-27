@@ -164,7 +164,7 @@ impl<E> InFlightException<E> {
 /// **In addition**, certain requirements are imposed on how the returned [`InFlightException`] is
 /// used. In particular, no exceptions may be thrown between the moment this function returns
 /// an [`InFlightException`] and the moment it is dropped (either by calling [`drop`] or by calling
-/// its [`InFlightException::rethrow`] method).
+/// its [`InFlightException::rethrow`] method). Panics, however, are allowed.
 ///
 /// Caught exceptions are not subject to this requirement, i.e. the following pattern is safe:
 ///
