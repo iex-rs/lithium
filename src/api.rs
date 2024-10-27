@@ -220,3 +220,62 @@ pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFligh
         (cause, InFlightException { ex })
     })
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn catch_ok() {
+        let result: Result<String, ()> = unsafe { catch(|| String::from("Hello, world!")) };
+        assert_eq!(result.unwrap(), "Hello, world!");
+    }
+
+    #[test]
+    fn catch_err() {
+        let result: Result<(), String> = unsafe { catch(|| throw(String::from("Hello, world!"))) };
+        assert_eq!(result.unwrap_err(), "Hello, world!");
+    }
+
+    #[test]
+    #[should_panic]
+    fn catch_panic() {
+        let _: Result<(), ()> = unsafe { catch(|| panic!("Hello, world!")) };
+    }
+
+    #[test]
+    fn rethrow() {
+        let result: Result<(), String> = unsafe {
+            catch(|| {
+                let (err, in_flight): (String, _) =
+                    intercept(|| throw(String::from("Hello, world!"))).unwrap_err();
+                in_flight.rethrow(err + " You look nice btw.");
+            })
+        };
+        assert_eq!(result.unwrap_err(), "Hello, world! You look nice btw.");
+    }
+
+    #[test]
+    fn panic_while_in_flight() {
+        struct Dropper;
+        impl Drop for Dropper {
+            fn drop(&mut self) {
+                let _ = std::panic::catch_unwind(|| {
+                    let (_err, _in_flight): (String, _) = unsafe {
+                        intercept(|| throw(String::from("Literally so insanely suspicious")))
+                    }
+                    .unwrap_err();
+                    panic!("Would be a shame if something happened to the exception.");
+                });
+            }
+        }
+
+        let result: Result<(), String> = unsafe {
+            catch(|| {
+                let _dropper = Dropper;
+                throw(String::from("Hello, world!"));
+            })
+        };
+        assert_eq!(result.unwrap_err(), "Hello, world!");
+    }
+}
