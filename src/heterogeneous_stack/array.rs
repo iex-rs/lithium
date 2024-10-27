@@ -159,12 +159,17 @@ mod test {
     #[test]
     fn consecutive() {
         let stack = Stack::<u8, 256>::new();
+        assert_eq!(stack.len.get(), 0);
         let ptr1 = stack.try_push(5).expect("failed to allocate");
+        assert_eq!(stack.len.get(), 5);
         let ptr2 = stack.try_push(8).expect("failed to allocate");
+        assert_eq!(stack.len.get(), 13);
         let ptr3 = stack.try_push(1).expect("failed to allocate");
+        assert_eq!(stack.len.get(), 14);
         assert_eq!(ptr2.addr() - ptr1.addr(), 5);
         assert_eq!(ptr3.addr() - ptr2.addr(), 8);
         unsafe { stack.pop_unchecked(1) };
+        assert_eq!(stack.len.get(), 13);
         let ptr4 = stack.try_push(2).expect("failed to allocate");
         assert_eq!(ptr3.addr(), ptr4.addr());
     }
