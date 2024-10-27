@@ -78,3 +78,111 @@ mod imp;
 mod imp;
 
 pub(crate) use imp::ActiveBackend;
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::exceptions::{pop, push};
+
+    #[test]
+    fn intercept_ok() {
+        let result = ActiveBackend::intercept(|| String::from("Hello, world!"));
+        assert_eq!(result.unwrap(), "Hello, world!");
+    }
+
+    #[test]
+    fn intercept_err() {
+        let ex = push(String::from("Hello, world!"));
+        let result = ActiveBackend::intercept(|| unsafe {
+            ActiveBackend::throw(ex.cast());
+        });
+        let caught_ex = result.unwrap_err().cast();
+        assert_eq!(caught_ex, ex);
+        assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
+        unsafe {
+            pop(caught_ex);
+        }
+    }
+
+    #[test]
+    fn intercept_panic() {
+        let result = std::panic::catch_unwind(|| {
+            ActiveBackend::intercept(|| std::panic::resume_unwind(Box::new("Hello, world!")))
+                .unwrap()
+        });
+        assert_eq!(
+            *result.unwrap_err().downcast_ref::<&'static str>().unwrap(),
+            "Hello, world!",
+        );
+    }
+
+    #[test]
+    fn nested_intercept() {
+        let ex = push(String::from("Hello, world!"));
+        let result = ActiveBackend::intercept(|| {
+            ActiveBackend::intercept(|| unsafe {
+                ActiveBackend::throw(ex.cast());
+            })
+        });
+        let caught_ex = result.unwrap().unwrap_err().cast();
+        assert_eq!(caught_ex, ex);
+        assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
+        unsafe {
+            pop(caught_ex);
+        }
+    }
+
+    #[test]
+    fn rethrow() {
+        let ex1 = push(String::from("Hello, world!"));
+        let result = ActiveBackend::intercept(|| {
+            let result = ActiveBackend::intercept(|| unsafe {
+                ActiveBackend::throw(ex1.cast());
+            });
+            let ex2 = result.unwrap_err();
+            assert_eq!(ex1.cast(), ex2);
+            unsafe {
+                ActiveBackend::throw(ex2);
+            }
+        });
+        let caught_ex = result.unwrap_err().cast();
+        assert_eq!(caught_ex, ex1);
+        assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
+        unsafe {
+            pop(caught_ex);
+        }
+    }
+
+    #[test]
+    fn nested_with_drop() {
+        struct Dropper;
+        impl Drop for Dropper {
+            fn drop(&mut self) {
+                let ex2 = push(String::from("Awful idea"));
+                let result = ActiveBackend::intercept(|| unsafe {
+                    ActiveBackend::throw(ex2.cast());
+                });
+                let caught_ex2 = result.unwrap_err().cast();
+                assert_eq!(caught_ex2, ex2);
+                assert_eq!(unsafe { (*caught_ex2).cause() }, "Awful idea");
+                unsafe {
+                    pop(caught_ex2);
+                }
+            }
+        }
+
+        let ex1 = push(String::from("Hello, world!"));
+        let result = ActiveBackend::intercept(|| {
+            let _dropper = Dropper;
+            unsafe {
+                ActiveBackend::throw(ex1.cast());
+            }
+        });
+        let caught_ex1 = result.unwrap_err().cast();
+        assert_eq!(caught_ex1, ex1);
+        assert_eq!(unsafe { (*caught_ex1).cause() }, "Hello, world!");
+        unsafe {
+            pop(caught_ex1);
+        }
+    }
+}
