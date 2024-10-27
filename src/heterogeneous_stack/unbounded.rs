@@ -279,6 +279,9 @@ mod test {
             assert_unique(ptr4, 4097);
         }
         assert_eq!(stack.bounded_stack.len.get(), 0);
+        unsafe {
+            stack.pop(ptr4, 4097);
+        }
     }
 
     #[test]
