@@ -18,6 +18,7 @@ unsafe impl Backend for ActiveBackend {
         }
     }
 
+    #[inline]
     unsafe fn throw(ex: *mut Header) -> ! {
         // SAFETY: We provide a valid exception header.
         unsafe {

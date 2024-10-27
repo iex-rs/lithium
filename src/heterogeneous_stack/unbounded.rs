@@ -29,6 +29,7 @@ impl<AlignAs> Stack<AlignAs> {
     ///
     /// Panics if `n` is not a multiple of `align_of::<AlignAs>()` or if allocating the object
     /// fails.
+    #[inline]
     pub fn push(&self, n: usize) -> *mut u8 {
         self.bounded_stack
             .try_push(n)

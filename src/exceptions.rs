@@ -47,11 +47,23 @@ thread_local! {
 #[thread_local]
 static STACK: Stack<Header> = const { Stack::new() };
 
-fn with_stack<T>(f: impl FnOnce(&Stack<Header>) -> T) -> T {
+/// Get a reference to the thread-local exception stack.
+///
+/// # Safety
+///
+/// The reference is lifetime-extended to `'static` and is only valid for access until the end of
+/// the thread. This includes at least the call frame of the immediate caller.
+// Unfortunately, replacing this unsafe API with a safe `with_stack` doesn't work, as `with` fails
+// to inline.
+unsafe fn get_stack() -> &'static Stack<Header> {
     #[cfg(feature = "std")]
-    return STACK.with(f);
+    // SAFETY: We require the caller to not use the reference anywhere near the end of the thread,
+    // so as long as `with` succeeds, there is no problem.
+    return STACK.with(|r| unsafe { core::mem::transmute(r) });
     #[cfg(not(feature = "std"))]
-    return f(&STACK);
+    // SAFETY: We require the caller to not use the reference anywhere near the end of the thread,
+    // so if `&STACK` is sound in the first place, there is no problem.
+    return unsafe { core::mem::transmute(&STACK) };
 }
 
 const fn get_alloc_size<E>() -> usize {
@@ -67,18 +79,19 @@ const fn get_alloc_size<E>() -> usize {
 }
 
 /// Push an exception onto the thread-local exception stack.
+#[inline(always)]
 pub fn push<E>(cause: E) -> *mut Exception<E> {
-    with_stack(|stack| {
-        let ex: *mut Exception<E> = stack.push(get_alloc_size::<E>()).cast();
-        // SAFETY:
-        // - The stack allocator guarantees the pointer is dereferenceable and unique.
-        // - The stack is configured to align like Header, which get_alloc_size verifies to be the
-        //   alignment of Exception<E>.
-        unsafe {
-            ex.write(Exception::new(cause));
-        }
-        ex
-    })
+    // SAFETY: We don't let the stack leak past the call frame.
+    let stack = unsafe { get_stack() };
+    let ex: *mut Exception<E> = stack.push(get_alloc_size::<E>()).cast();
+    // SAFETY:
+    // - The stack allocator guarantees the pointer is dereferenceable and unique.
+    // - The stack is configured to align like Header, which get_alloc_size verifies to be the
+    //   alignment of Exception<E>.
+    unsafe {
+        ex.write(Exception::new(cause));
+    }
+    ex
 }
 
 /// Remove an exception from the thread-local exception stack.
@@ -89,12 +102,12 @@ pub fn push<E>(cause: E) -> *mut Exception<E> {
 /// [`push`] or [`replace_last`] with the same exception type. In addition, the exception must not
 /// be accessed after `pop`.
 pub unsafe fn pop<E>(ex: *mut Exception<E>) {
-    with_stack(|stack| {
-        // SAFETY: We require `ex` to be correctly obtained and unused after `pop`.
-        unsafe {
-            stack.pop(ex.cast(), get_alloc_size::<E>());
-        }
-    });
+    // SAFETY: We don't let the stack leak past the call frame.
+    let stack = unsafe { get_stack() };
+    // SAFETY: We require `ex` to be correctly obtained and unused after `pop`.
+    unsafe {
+        stack.pop(ex.cast(), get_alloc_size::<E>());
+    }
 }
 
 /// Replace the exception on the top of the thread-local exception stack.
@@ -105,16 +118,16 @@ pub unsafe fn pop<E>(ex: *mut Exception<E>) {
 /// [`push`] or [`replace_last`] with the same exception type. In addition, the old exception must
 /// not be accessed after `replace_last`.
 pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
-    with_stack(|stack| {
-        let ex: *mut Exception<F> =
-            // SAFETY: We require `ex` to be correctly obtained and unused after `replace_last`.
-            unsafe { stack.replace_last(ex.cast(), get_alloc_size::<E>(), get_alloc_size::<F>()) }
-                .cast();
-        // SAFETY: `replace_last` returns unique aligned storage, good for Exception<F> as per the
-        // return value of `get_alloc_size`.
-        unsafe {
-            ex.write(Exception::new(cause));
-        }
-        ex
-    })
+    // SAFETY: We don't let the stack leak past the call frame.
+    let stack = unsafe { get_stack() };
+    let ex: *mut Exception<F> =
+        // SAFETY: We require `ex` to be correctly obtained and unused after `replace_last`.
+        unsafe { stack.replace_last(ex.cast(), get_alloc_size::<E>(), get_alloc_size::<F>()) }
+            .cast();
+    // SAFETY: `replace_last` returns unique aligned storage, good for Exception<F> as per the
+    // return value of `get_alloc_size`.
+    unsafe {
+        ex.write(Exception::new(cause));
+    }
+    ex
 }

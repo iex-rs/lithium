@@ -33,7 +33,7 @@ use core::mem::ManuallyDrop;
 ///     throw::<&'static str>("Oops!");
 /// }
 /// ```
-#[inline]
+#[inline(never)]
 pub unsafe fn throw<E>(cause: E) -> ! {
     let ex = push(cause).cast();
     // SAFETY:

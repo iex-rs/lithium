@@ -53,6 +53,7 @@ unsafe impl Backend for ActiveBackend {
         LithiumMarker
     }
 
+    #[inline]
     unsafe fn throw(ex: *mut LithiumMarker) -> ! {
         #[cfg(feature = "sound-under-stacked-borrows")]
         ex.expose_provenance();
