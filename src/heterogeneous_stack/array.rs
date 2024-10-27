@@ -128,3 +128,83 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn unaligned_push() {
+        Stack::<u16, 16>::new().try_push(3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn unaligned_pop() {
+        unsafe {
+            Stack::<u16, 16>::new().pop_unchecked(1);
+        }
+    }
+
+    #[test]
+    fn overaligned() {
+        #[repr(align(256))]
+        struct Overaligned;
+        let stack = Stack::<Overaligned, 256>::new();
+        let ptr = stack.try_push(256).expect("failed to allocate");
+        assert_eq!(ptr.addr() % 256, 0);
+    }
+
+    #[test]
+    fn consecutive() {
+        let stack = Stack::<u8, 256>::new();
+        let ptr1 = stack.try_push(5).expect("failed to allocate");
+        let ptr2 = stack.try_push(8).expect("failed to allocate");
+        let ptr3 = stack.try_push(1).expect("failed to allocate");
+        assert_eq!(ptr2.addr() - ptr1.addr(), 5);
+        assert_eq!(ptr3.addr() - ptr2.addr(), 8);
+        unsafe { stack.pop_unchecked(1) };
+        let ptr4 = stack.try_push(2).expect("failed to allocate");
+        assert_eq!(ptr3.addr(), ptr4.addr());
+    }
+
+    #[test]
+    fn too_large() {
+        let stack = Stack::<u8, 16>::new();
+        stack.try_push(5);
+        assert!(stack.try_push(12).is_none(), "allocation fit");
+    }
+
+    #[test]
+    fn pop_zero() {
+        let stack = Stack::<u8, 16>::new();
+        unsafe {
+            stack.pop_unchecked(0);
+        }
+    }
+
+    #[test]
+    fn push_zero() {
+        let stack = Stack::<u8, 16>::new();
+        stack.try_push(16).expect("failed to allocate");
+        stack.try_push(0).expect("failed to allocate");
+        stack.try_push(0).expect("failed to allocate");
+    }
+
+    #[test]
+    fn contains_allocated() {
+        let stack = Stack::<u8, 16>::new();
+        let ptr = stack.try_push(1).expect("failed to allocate");
+        assert!(stack.contains_allocated(ptr, 1));
+        let ptr = stack.try_push(14).expect("failed to allocate");
+        assert!(stack.contains_allocated(ptr, 14));
+        let ptr = stack.try_push(1).expect("failed to allocate");
+        assert!(stack.contains_allocated(ptr, 1));
+        let ptr = stack.try_push(0).expect("failed to allocate");
+        assert!(stack.contains_allocated(ptr, 0));
+        assert!(stack.contains_allocated(core::ptr::null(), 0));
+        assert!(!stack.contains_allocated(core::ptr::null(), 1));
+        assert!(!stack.contains_allocated(&*Box::new(1), 1));
+    }
+}
