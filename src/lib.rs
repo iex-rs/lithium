@@ -4,10 +4,11 @@
 //! panics, this mechanism is allocation-free, avoids indirections and RTTI, and hence faster, if
 //! less applicable.
 //!
-//! When used together with the [`revolve`](https://lib.rs/revolve) crate, unwinding exceptions
-//! takes only 3 ns/frame, barely slower than returns. In this configuration, using exceptions
-//! instead of [`Result`] both speeds up the success path and only marginally slows down the error
-//! path, making this approach ideal when the probability of an error is low.
+//! Under the default configuration, Lithium is more than 2x faster Rust panics on common
+//! `Result`-like usecases. When used together with the [`revolve`](https://lib.rs/revolve) crate,
+//! it's 2-3x faster than Rust panics, bringing timings down to about 15 ns per frame with `map_err`
+//! in realistic code -- faster than an allocation. See the
+//! [benchmark](https://github.com/iex-rs/lithium/blob/master/benches/bench.rs).
 //!
 //!
 //! # Usage
