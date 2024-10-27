@@ -1,5 +1,11 @@
 [package]
 name = "lithium"
+description = "Lightweight exceptions"
+license = "MIT"
+repository = "https://github.com/iex-rs/lithium"
+readme = "README.md"
+keywords = ["error", "error-handling", "exception"]
+categories = ["rust-patterns"]
 version = "0.1.0"
 edition = "2021"
 

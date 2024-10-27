@@ -71,6 +71,7 @@
 #![cfg_attr(backend = "itanium", feature(core_intrinsics))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
+    clippy::cargo,
     clippy::pedantic,
     clippy::multiple_unsafe_ops_per_block,
     clippy::undocumented_unsafe_blocks,
