@@ -91,6 +91,8 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
     /// - References to the top `n` bytes, both immutable or mutable, are not used after
     ///   `pop_unchecked` is called.
     pub unsafe fn pop_unchecked(&self, n: usize) {
+        assert_aligned::<AlignAs>(n);
+
         // For ZSTs, this is a no-op.
         // SAFETY: len >= n by the safety requirement
         self.len.set(unsafe { self.len.get().unchecked_sub(n) });
