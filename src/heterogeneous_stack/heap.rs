@@ -27,7 +27,14 @@ impl<AlignAs> Heap<AlignAs> {
     pub fn alloc(&self, n: usize) -> *mut u8 {
         assert_aligned::<AlignAs>(n);
         assert_ne!(n, 0, "Allocating 0 bytes is invalid");
-        let layout = Layout::from_size_align(n, align_of::<AlignAs>()).unwrap();
+        assert!(
+            n.next_multiple_of(align_of::<AlignAs>()) <= isize::MAX as usize,
+            "Size overflow",
+        );
+        // SAFETY:
+        // - `align` is a power of two, as `align_of` returns a power of two
+        // - We've checked that `n <= isize::MAX` after rounding up
+        let layout = unsafe { Layout::from_size_align_unchecked(n, align_of::<AlignAs>()) };
         // SAFETY: n != 0 has been checked
         unsafe { alloc::alloc(layout) }
     }
@@ -41,7 +48,8 @@ impl<AlignAs> Heap<AlignAs> {
     /// `dealloc` is called.
     #[expect(clippy::unused_self)]
     pub unsafe fn dealloc(&self, ptr: *mut u8, n: usize) {
-        let layout = Layout::from_size_align(n, align_of::<AlignAs>()).unwrap();
+        // SAFETY: alloc would fail if the preconditions for this weren't established
+        let layout = unsafe { Layout::from_size_align_unchecked(n, align_of::<AlignAs>()) };
         // SAFETY:
         // - ptr was allocated with the same allocator
         // - alloc would fail if n == 0, so we know n != 0 holds here
