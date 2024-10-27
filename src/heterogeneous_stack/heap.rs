@@ -27,13 +27,10 @@ impl<AlignAs> Heap<AlignAs> {
     pub fn alloc(&self, n: usize) -> *mut u8 {
         assert_aligned::<AlignAs>(n);
         assert_ne!(n, 0, "Allocating 0 bytes is invalid");
-        assert!(
-            n.next_multiple_of(align_of::<AlignAs>()) <= isize::MAX as usize,
-            "Size overflow",
-        );
+        isize::try_from(n.next_multiple_of(align_of::<AlignAs>())).expect("Too big allocation");
         // SAFETY:
         // - `align` is a power of two, as `align_of` returns a power of two
-        // - We've checked that `n <= isize::MAX` after rounding up
+        // - We've checked that `n` fits in `isize` after rounding up
         let layout = unsafe { Layout::from_size_align_unchecked(n, align_of::<AlignAs>()) };
         // SAFETY: n != 0 has been checked
         unsafe { alloc::alloc(layout) }
@@ -71,6 +68,12 @@ mod test {
     #[should_panic]
     fn alloc_unaligned() {
         Heap::<u16>::new().alloc(3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn alloc_large() {
+        Heap::<u8>::new().alloc((isize::MAX as usize) + 1);
     }
 
     #[test]
