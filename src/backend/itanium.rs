@@ -107,7 +107,7 @@ unsafe impl Backend for ActiveBackend {
     }
 }
 
-#[repr(C)]
+#[repr(C, align(16))]
 pub struct Header {
     class: u64,
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
