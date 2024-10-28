@@ -31,7 +31,7 @@ impl<E> Exception<E> {
     /// `ex` must be a unique pointer at an exception object.
     pub const unsafe fn header(ex: *mut Self) -> *mut Header {
         // SAFETY: Required transitively.
-        unsafe { &raw mut (*ex).header }
+        unsafe { ex.byte_add(offset_of!(Self, header)) }.cast()
     }
 
     /// Restore pointer from pointer to header.
