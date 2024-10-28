@@ -75,6 +75,7 @@ static STACK: Stack<Header> = const { Stack::new() };
 /// the thread. This includes at least the call frame of the immediate caller.
 // Unfortunately, replacing this unsafe API with a safe `with_stack` doesn't work, as `with` fails
 // to inline.
+#[inline]
 unsafe fn get_stack() -> &'static Stack<Header> {
     #[cfg(feature = "std")]
     // SAFETY: We require the caller to not use the reference anywhere near the end of the thread,

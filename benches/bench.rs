@@ -9,10 +9,14 @@ fn bench_anyhow(c: &mut Criterion) {
             if n == 0 {
                 std::panic::resume_unwind(Box::new(anyhow!("Hello, world!")));
             } else {
-                let mut bx = std::panic::catch_unwind(|| imp(n - 1)).unwrap_err();
-                let err = bx.downcast_mut::<anyhow::Error>().unwrap();
-                replace_with::replace_with_or_abort(err, |e| e.context("In imp"));
-                std::panic::resume_unwind(bx);
+                match std::panic::catch_unwind(|| imp(n - 1)) {
+                    Ok(x) => x,
+                    Err(mut bx) => {
+                        let err = bx.downcast_mut::<anyhow::Error>().unwrap();
+                        replace_with::replace_with_or_abort(err, |e| e.context("In imp"));
+                        std::panic::resume_unwind(bx);
+                    }
+                }
             }
         }
         let _ = black_box(std::panic::catch_unwind(|| {
@@ -27,8 +31,10 @@ fn bench_anyhow(c: &mut Criterion) {
                 if n == 0 {
                     throw(anyhow!("Hello, world!"));
                 } else {
-                    let (e, in_flight) = intercept::<(), anyhow::Error>(|| imp(n - 1)).unwrap_err();
-                    in_flight.rethrow(e.context("In imp"));
+                    match intercept::<(), anyhow::Error>(|| imp(n - 1)) {
+                        Ok(x) => x,
+                        Err((e, in_flight)) => in_flight.rethrow(e.context("In imp")),
+                    }
                 }
             }
         }
@@ -52,10 +58,14 @@ fn bench_simple(c: &mut Criterion) {
             if n == 0 {
                 std::panic::resume_unwind(Box::new("Hello, world!"));
             } else {
-                let mut bx = std::panic::catch_unwind(|| imp(n - 1)).unwrap_err();
-                let err = bx.downcast_mut::<&'static str>().unwrap();
-                black_box(err); // simulate adding information to the error in some fashion
-                std::panic::resume_unwind(bx);
+                match std::panic::catch_unwind(|| imp(n - 1)) {
+                    Ok(x) => x,
+                    Err(mut bx) => {
+                        let err = bx.downcast_mut::<&'static str>().unwrap();
+                        black_box(err); // simulate adding information to the error in some fashion
+                        std::panic::resume_unwind(bx);
+                    }
+                }
             }
         }
         let _ = black_box(std::panic::catch_unwind(|| {
@@ -70,8 +80,10 @@ fn bench_simple(c: &mut Criterion) {
                 if n == 0 {
                     throw("Hello, world!");
                 } else {
-                    let (e, in_flight) = intercept::<(), &'static str>(|| imp(n - 1)).unwrap_err();
-                    in_flight.rethrow(black_box(e)); // simulate adding information
+                    match intercept::<(), &'static str>(|| imp(n - 1)) {
+                        Ok(x) => x,
+                        Err((e, in_flight)) => in_flight.rethrow(black_box(e)), // simulate adding information
+                    }
                 }
             }
         }
