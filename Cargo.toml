@@ -10,20 +10,16 @@ version = "0.1.0"
 edition = "2021"
 links = "rustlithium"  # Force uniqueness of crate version
 
-[build-dependencies]
-rustc_version = "0.4.1"
-
-[lints.rust.unexpected_cfgs]
-level = "warn"
-check-cfg = ["cfg(nightly)", "cfg(backend, values(\"itanium\", \"panic\"))"]
+[dependencies]
+typeid = "1.0.2"
 
 [dev-dependencies]
 anyhow = "1"
 criterion = "0.4"
 replace_with = "0.1.7"
 
-[dependencies]
-typeid = "1.0.2"
+[build-dependencies]
+rustc_version = "0.4.1"
 
 [features]
 default = ["std"]
@@ -36,3 +32,7 @@ all-features = true
 [[bench]]
 name = "bench"
 harness = false
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(nightly)", "cfg(backend, values(\"itanium\", \"panic\"))"]
