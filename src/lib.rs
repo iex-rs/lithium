@@ -6,7 +6,7 @@
 //!
 //! Under the default configuration, Lithium is more than 2x faster Rust panics on common
 //! `Result`-like usecases. When used together with the [`revolve`](https://lib.rs/revolve) crate,
-//! it's 2-3x faster than Rust panics, bringing timings down to about 15 ns per frame with `map_err`
+//! it's 2-4x faster than Rust panics, bringing timings down to about 10 ns per frame with `map_err`
 //! in realistic code -- faster than an allocation. See the
 //! [benchmark](https://github.com/iex-rs/lithium/blob/master/benches/bench.rs).
 //!
