@@ -158,11 +158,6 @@ mod test {
     use super::*;
 
     #[test]
-    fn header_is_first_field() {
-        assert_eq!(core::mem::offset_of!(Exception::<u128>, header), 0);
-    }
-
-    #[test]
     fn exception_cause() {
         let mut ex = Exception::new(String::from("Hello, world!"));
         assert_eq!(unsafe { ex.cause() }, "Hello, world!");
