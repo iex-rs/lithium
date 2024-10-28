@@ -68,10 +68,10 @@ unsafe impl Backend for ActiveBackend {
             #[cold]
             |ex| {
                 if ex.is::<LithiumMarker>() {
-                    // If this is a `LithiumMarker`, it must have been produced by `throw`, because this
-                    // type is crate-local and we don't use it elsewhere. The safety requirements for
-                    // `throw` require no messing with unwinding up to `intercept`, so this must have
-                    // been our exception.
+                    // If this is a `LithiumMarker`, it must have been produced by `throw`, because
+                    // this type is crate-local and we don't use it elsewhere. The safety
+                    // requirements for `throw` require no messing with unwinding up to `intercept`,
+                    // so this must have been our exception.
                     let ex: *mut LithiumMarker = Box::into_raw(ex).cast();
                     #[cfg(feature = "sound-under-stacked-borrows")]
                     let ex = core::ptr::with_exposed_provenance_mut(ex.addr());
