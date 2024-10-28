@@ -8,6 +8,7 @@ keywords = ["error", "error-handling", "exception"]
 categories = ["rust-patterns", "no-std"]
 version = "0.1.0"
 edition = "2021"
+links = "rustlithium"  # Force uniqueness of crate version
 
 [build-dependencies]
 rustc_version = "0.4.1"
