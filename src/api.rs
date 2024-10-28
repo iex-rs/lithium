@@ -31,7 +31,7 @@ use core::mem::ManuallyDrop;
 ///     throw::<&'static str>("Oops!");
 /// }
 /// ```
-#[inline(never)]
+#[inline(always)]
 pub unsafe fn throw<E>(cause: E) -> ! {
     let ex = push(cause);
     // SAFETY: Just allocated.

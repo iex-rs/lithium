@@ -62,7 +62,7 @@ fn bench_simple(c: &mut Criterion) {
                     Ok(x) => x,
                     Err(mut bx) => {
                         let err = bx.downcast_mut::<&'static str>().unwrap();
-                        black_box(err); // simulate adding information to the error in some fashion
+                        *err = black_box(*err); // simulate adding information to the error in some fashion
                         std::panic::resume_unwind(bx);
                     }
                 }
