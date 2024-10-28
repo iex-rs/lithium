@@ -213,10 +213,12 @@ pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFligh
         // `E`. Backend guarantees the pointer is passed as-is, and `throw` only throws unique
         // pointers to valid instances of `Exception<E>` via the backend.
         let ex = unsafe { Exception::<E>::from_header(ex) };
-        // SAFETY: Same as above.
-        let ex_ref = unsafe { &mut *ex };
-        // SAFETY: We only read the cause here once.
-        let cause = unsafe { ex_ref.cause() };
+        let cause = {
+            // SAFETY: Same as above.
+            let ex_ref = unsafe { &mut *ex };
+            // SAFETY: We only read the cause here once.
+            unsafe { ex_ref.cause() }
+        };
         (cause, InFlightException { ex })
     })
 }
