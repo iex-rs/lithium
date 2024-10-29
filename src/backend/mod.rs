@@ -71,6 +71,10 @@ pub unsafe trait Backend {
 #[path = "itanium.rs"]
 mod imp;
 
+#[cfg(backend = "seh")]
+#[path = "seh.rs"]
+mod imp;
+
 #[cfg(all(backend = "panic", feature = "std"))]
 #[path = "panic.rs"]
 mod imp;

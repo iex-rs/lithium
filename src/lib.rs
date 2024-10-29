@@ -76,6 +76,7 @@
 #![cfg_attr(not(feature = "std"), feature(thread_local))]
 #![cfg_attr(backend = "itanium", expect(internal_features))]
 #![cfg_attr(backend = "itanium", feature(core_intrinsics))]
+#![cfg_attr(backend = "seh", feature(core_intrinsics, fn_ptr_trait))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
     clippy::cargo,
