@@ -314,19 +314,16 @@ struct SmallPtr<P> {
 unsafe impl<P> Sync for SmallPtr<P> {}
 
 impl<P> SmallPtr<P> {
+    #[inline]
     fn from_erased(p: *const ()) -> Self {
         #[cfg(target_pointer_width = "32")]
         let value = p.expose_provenance();
         #[cfg(target_pointer_width = "64")]
-        let value = if p.is_null() {
-            0
-        } else {
-            p.expose_provenance()
-                .wrapping_sub((&raw const __ImageBase).addr())
-                .try_into()
-                .map_err(|_| format!("address: {:p}, image base: {:p}", p, &raw const __ImageBase))
-                .expect("Too large image")
-        };
+        let value = p
+            .expose_provenance()
+            .wrapping_sub((&raw const __ImageBase).addr())
+            .try_into()
+            .expect("Too large image");
         Self {
             value: AtomicU32::new(value),
             phantom: PhantomData,
@@ -372,6 +369,7 @@ extern "system-unwind" {
 ///
 /// `throw_info` must point to a correctly initialized `ThrowInfo` value, valid for the whole
 /// duration of the unwinding procedure.
+#[inline(always)]
 unsafe fn cxx_throw(exception_object: *mut ExceptionHeader, throw_info: *const ThrowInfo) -> ! {
     // This is a reimplementation of `_CxxThrowException`, with quite a few information hardcoded
     // and functions calls inlined.
