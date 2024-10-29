@@ -29,7 +29,7 @@
 //! At the moment, the custom mechanism is only supported on nightly on the following platforms:
 //!
 //! - Unix-like targets (Linux and macOS included)
-//! - MinGW (GNU-like Windows)
+//! - Windows (both MinGW and MSVC)
 //! - WASM
 //!
 //! This mechanism works with `#![no_std]`, as long as the Itanium EH unwinder is linked in. Use
