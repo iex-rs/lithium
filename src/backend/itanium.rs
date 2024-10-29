@@ -1,4 +1,4 @@
-use super::Backend;
+use super::ThrowByPointer;
 use core::mem::{ManuallyDrop, MaybeUninit};
 
 pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTLITH");
@@ -7,7 +7,7 @@ pub(crate) struct ActiveBackend;
 
 // SAFETY: We use Itanium EH ABI, which supports nested exceptions correctly. We can assume we don't
 // encounter foreign frames, because that's a safety requirement of `throw`.
-unsafe impl Backend for ActiveBackend {
+unsafe impl ThrowByPointer for ActiveBackend {
     type ExceptionHeader = Header;
 
     fn new_header() -> Header {

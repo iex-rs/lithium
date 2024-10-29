@@ -83,7 +83,6 @@
     clippy::pedantic,
     clippy::missing_const_for_fn,
     clippy::alloc_instead_of_core,
-    clippy::allow_attributes,
     clippy::arithmetic_side_effects,
     clippy::as_underscore,
     clippy::assertions_on_result_states,
@@ -137,7 +136,10 @@ extern crate alloc;
 
 mod api;
 mod backend;
-mod exceptions;
+
+#[cfg(any(backend = "itanium", backend = "panic"))]
 mod heterogeneous_stack;
+#[cfg(any(backend = "itanium", backend = "panic"))]
+mod stacked_exceptions;
 
 pub use api::{catch, intercept, throw, InFlightException};

@@ -1,35 +1,53 @@
-/// An unwinding backend.
+//! Unwinding backends.
+//!
+//! Unwinding is a mechanism of forcefully "returning" through multiple call frames, called
+//! *throwing*, up until a special call frame, called *interceptor*. This roughly corresponds to the
+//! `resume_unwind`/`catch_unwind` pair on Rust and `throw`/`catch` pair on C++.
+//!
+//! It's crucial that unwinding doesn't require (source-level) cooperation from the intermediate
+//! call frames.
+//!
+//! Two kinds of backends are supported: those that throw by value and those that throw by pointer.
+//! Throwing by value is for backends that can keep arbitrary data retained on stack during
+//! unwinding (i.e. unwinding and calling landing pads does not override the throwing stackframe),
+//! while throwing by pointer is for backends that need the exception, along with any additional
+//! data, to be stored on heap.
+//!
+//! # Safety
+//!
+//! Backends must ensure that when an exception is thrown, unwinding proceeds to the closest (most
+//! nested) `intercept` frame and that `intercept` returns this exact exception.
+//!
+//! Note that several exceptions can co-exist at once, even in a single thread. This can happen if
+//! a destructor that uses exceptions (without letting them escape past `drop`) is invoked during
+//! unwinding from another exception. This can be nested arbitrarily. In this context, the order of
+//! catching must be in the reverse order of throwing.
+//!
+//! During unwinding, all destructors of locals must be run, as if `return` was called. Exceptions
+//! may not be ignored or caught twice.
+
+/// Throw-by-pointer backend.
 ///
-/// Unwinding is a mechanism of forcefully "returning" through multiple call frames, called
-/// *throwing*, up until a special call frame, called *interceptor*. This roughly corresponds to the
-/// `resume_unwind`/`catch_unwind` pair on Rust and `throw`/`catch` pair on C++.
-///
-/// It's crucial that unwinding doesn't require (source-level) cooperation from the intermediate
-/// call frames.
-///
-/// Backends are supposed to treat exception objects as opaque, except for
-/// [`Backend::ExceptionHeader`]. This also means that exception objects are untyped from the
-/// backend's point of view.
+/// Implementors of this trait should consider exceptions as type-erased objects. These objects
+/// contain a header, provided by the implementor, and the `throw` and `intercept` method work only
+/// with this header. The header is part of a greater allocation containing the exception object,
+/// but interacting with this object is forbidden.
 ///
 /// # Safety
 ///
-/// Implementations of this trait must ensure that when an exception pointer is thrown, unwinding
-/// proceeds to the closest (most nested) `intercept` frame and that `intercept` returns this exact
-/// pointer (including provenance). The implementation may modify the header arbitrarily during
-/// unwinding, but modifying any other data from the same allocation is forbidden.
+/// Implementations must satisfy the rules of the "Safety" section of [this module](self). In
+/// addition:
 ///
-/// During unwinding, all destructors of locals must be run, as if `return` was called.
+/// The implementation may modify the header arbitrarily during unwinding, but modifying any other
+/// data from the same allocation is forbidden.
+///
+/// If the `intercept` method returns `Err`, the returned pointer must be the same as the pointer
+/// passed to `throw`, including provenance.
 ///
 /// The user of this trait is allowed to reuse the header when rethrowing exceptions. In particular,
 /// the return value of `intercept` may be used as an argument to `throw`.
-///
-/// Exceptions may not be ignored or caught twice.
-///
-/// Note that several exceptions can co-exist at once, even in a single thread. This can happen if
-/// a destructor that uses exceptions (without letting them escape past `drop`) is invoked during
-/// unwinding from another exception. This can be nested arbitrarily. In this context, the order of
-/// catching must be in the reverse order of throwing.
-pub unsafe trait Backend {
+#[allow(dead_code)]
+pub unsafe trait ThrowByPointer {
     /// An exception header.
     ///
     /// Allocated exceptions, as stored in the [`Exception`](super::exceptions::Exception) type,
@@ -46,8 +64,7 @@ pub unsafe trait Backend {
     ///
     /// # Safety
     ///
-    /// The first requirement is that `ex` is a unique pointer to an exception object, cast to
-    /// `*mut Self::ExceptionHeader`.
+    /// The first requirement is that `ex` is a unique pointer to an exception header.
     ///
     /// Secondly, it is important that intermediate call frames don't preclude unwinding from
     /// happening soundly. For example, [`catch_unwind`](std::panic::catch_unwind) can safely catch
@@ -62,9 +79,78 @@ pub unsafe trait Backend {
     /// Catch an exception.
     ///
     /// This function returns `Ok` if the function returns normally, or `Err` if it throws (and the
-    /// thrown exception is not caught by a nested interceptor). If `Err` is returned, the pointer
-    /// must match what was thrown, including provenance.
+    /// thrown exception is not caught by a nested interceptor).
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Self::ExceptionHeader>;
+}
+
+/// Throw-by-value backend.
+///
+/// Implementors of this trait should consider exceptions as generic objects. Any additional
+/// information used by the implementor has to be stored separately.
+///
+/// # Safety
+///
+/// Implementations must satisfy the rules of the "Safety" section of [this module](self). In
+/// addition:
+///
+/// The implementation may modify the header arbitrarily during unwinding, but modifying the
+/// exception object is forbidden.
+///
+/// If the `intercept` method returns `Err`, the returned value must be the same as the value passed
+/// to `throw`.
+pub unsafe trait ThrowByValue {
+    /// A [`RethrowHandle`].
+    type RethrowHandle<E>: RethrowHandle;
+
+    /// Throw an exception.
+    ///
+    /// # Safety
+    ///
+    /// It is important that intermediate call frames don't preclude unwinding from happening
+    /// soundly. For example, [`catch_unwind`](std::panic::catch_unwind) can safely catch panics and
+    /// may start catching foreign exceptions soon, both of which can confuse the user of this
+    /// trait.
+    ///
+    /// For this reason, the caller must ensure no intermediate frames can affect unwinding. This
+    /// includes not passing throwing callbacks to foreign crates, but also not using `throw` in own
+    /// code that might `intercept` an exception without cooperation with the throwing side.
+    unsafe fn throw<E>(cause: E) -> !;
+
+    /// Catch an exception.
+    ///
+    /// This function returns `Ok` if the function returns normally, or `Err` if it throws (and the
+    /// thrown exception is not caught by a nested interceptor).
+    ///
+    /// # Safety
+    ///
+    /// The type `E` must match the type of the thrown exception.
+    ///
+    /// In addition, certain requirements are imposed on how the returned [`RethrowHandle`] is used.
+    /// In particular, no exceptions may be thrown between the moment this function returns and the
+    /// moment the handle is dropped (either by calling [`drop`] or by calling its
+    /// [`RethrowHandle::rethrow`] method). Panics, however, are allowed, as are caught exceptions.
+    unsafe fn intercept<Func: FnOnce() -> R, R, E>(
+        func: Func,
+    ) -> Result<R, (E, Self::RethrowHandle<E>)>;
+}
+
+/// A rethrow handle.
+///
+/// This handle is returned by [`ThrowByValue::intercept`] implementations that support efficient
+/// rethrowing. Sometimes, certain allocations or structures can be retained between throw calls,
+/// and this handle can be used to optimize this.
+///
+/// The handle owns the structures/allocations, and when it's dropped, it should free those
+/// resources, if necessary.
+pub trait RethrowHandle {
+    /// Throw a new exception by reusing the existing context.
+    ///
+    /// See [`ThrowByValue::intercept`] docs for examples and safety notes.
+    ///
+    /// # Safety
+    ///
+    /// All safety requirements of [`ThrowByValue::throw`] apply.
+    unsafe fn rethrow<F>(self, new_cause: F) -> !;
 }
 
 #[cfg(backend = "itanium")]
@@ -87,34 +173,32 @@ pub(crate) use imp::ActiveBackend;
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::exceptions::{pop, push, Exception};
+    use super::{ActiveBackend, RethrowHandle, ThrowByValue};
 
     #[test]
     fn intercept_ok() {
-        let result = ActiveBackend::intercept(|| String::from("Hello, world!"));
+        let result =
+            unsafe { ActiveBackend::intercept::<_, _, ()>(|| String::from("Hello, world!")) };
         assert_eq!(result.unwrap(), "Hello, world!");
     }
 
     #[test]
     fn intercept_err() {
-        let ex = push(String::from("Hello, world!"));
-        let result = ActiveBackend::intercept(|| unsafe {
-            ActiveBackend::throw(Exception::header(ex));
-        });
-        let caught_ex = unsafe { Exception::from_header(result.unwrap_err()) };
-        assert_eq!(caught_ex, ex);
-        assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
-        unsafe {
-            pop(caught_ex);
-        }
+        let result = unsafe {
+            ActiveBackend::intercept::<_, _, String>(|| {
+                ActiveBackend::throw(String::from("Hello, world!"));
+            })
+        };
+        let (caught_ex, _) = result.unwrap_err();
+        assert_eq!(caught_ex, "Hello, world!");
     }
 
     #[test]
     fn intercept_panic() {
-        let result = std::panic::catch_unwind(|| {
-            ActiveBackend::intercept(|| std::panic::resume_unwind(Box::new("Hello, world!")))
-                .unwrap()
+        let result = std::panic::catch_unwind(|| unsafe {
+            ActiveBackend::intercept::<_, _, ()>(|| {
+                std::panic::resume_unwind(Box::new("Hello, world!"))
+            })
         });
         assert_eq!(
             *result.unwrap_err().downcast_ref::<&'static str>().unwrap(),
@@ -124,39 +208,31 @@ mod test {
 
     #[test]
     fn nested_intercept() {
-        let ex = push(String::from("Hello, world!"));
-        let result = ActiveBackend::intercept(|| {
-            ActiveBackend::intercept(|| unsafe {
-                ActiveBackend::throw(Exception::header(ex));
+        let result = unsafe {
+            ActiveBackend::intercept::<_, _, ()>(|| {
+                ActiveBackend::intercept::<_, _, String>(|| {
+                    ActiveBackend::throw(String::from("Hello, world!"));
+                })
             })
-        });
-        let caught_ex = unsafe { Exception::from_header(result.unwrap().unwrap_err()) };
-        assert_eq!(caught_ex, ex);
-        assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
-        unsafe {
-            pop(caught_ex);
-        }
+        };
+        let (caught_ex, _) = result.unwrap().unwrap_err();
+        assert_eq!(caught_ex, "Hello, world!");
     }
 
     #[test]
     fn rethrow() {
-        let ex1 = push(String::from("Hello, world!"));
-        let result = ActiveBackend::intercept(|| {
-            let result = ActiveBackend::intercept(|| unsafe {
-                ActiveBackend::throw(Exception::header(ex1));
-            });
-            let ex2 = result.unwrap_err();
-            assert_eq!(unsafe { Exception::header(ex1) }, ex2);
-            unsafe {
-                ActiveBackend::throw(ex2);
-            }
-        });
-        let caught_ex = unsafe { Exception::from_header(result.unwrap_err()) };
-        assert_eq!(caught_ex, ex1);
-        assert_eq!(unsafe { (*caught_ex).cause() }, "Hello, world!");
-        unsafe {
-            pop(caught_ex);
-        }
+        let result = unsafe {
+            ActiveBackend::intercept::<_, _, String>(|| {
+                let result = ActiveBackend::intercept::<_, _, String>(|| {
+                    ActiveBackend::throw(String::from("Hello, world!"));
+                });
+                let (ex2, handle) = result.unwrap_err();
+                assert_eq!(ex2, "Hello, world!");
+                handle.rethrow(ex2);
+            })
+        };
+        let (caught_ex, _) = result.unwrap_err();
+        assert_eq!(caught_ex, "Hello, world!");
     }
 
     #[test]
@@ -169,19 +245,14 @@ mod test {
         }
 
         let mut destructor_was_run = false;
-        let ex1 = push(String::from("Hello, world!"));
-        let result = ActiveBackend::intercept(|| {
-            let _dropper = Dropper(&mut destructor_was_run);
-            unsafe {
-                ActiveBackend::throw(Exception::header(ex1));
-            }
-        });
-        let caught_ex1 = unsafe { Exception::from_header(result.unwrap_err()) };
-        assert_eq!(caught_ex1, ex1);
-        assert_eq!(unsafe { (*caught_ex1).cause() }, "Hello, world!");
-        unsafe {
-            pop(caught_ex1);
-        }
+        let result = unsafe {
+            ActiveBackend::intercept::<_, _, String>(|| {
+                let _dropper = Dropper(&mut destructor_was_run);
+                ActiveBackend::throw(String::from("Hello, world!"));
+            })
+        };
+        let (caught_ex, _) = result.unwrap_err();
+        assert_eq!(caught_ex, "Hello, world!");
 
         assert!(destructor_was_run);
     }
@@ -191,31 +262,23 @@ mod test {
         struct Dropper;
         impl Drop for Dropper {
             fn drop(&mut self) {
-                let ex2 = push(String::from("Awful idea"));
-                let result = ActiveBackend::intercept(|| unsafe {
-                    ActiveBackend::throw(Exception::header(ex2));
-                });
-                let caught_ex2 = unsafe { Exception::from_header(result.unwrap_err()) };
-                assert_eq!(caught_ex2, ex2);
-                assert_eq!(unsafe { (*caught_ex2).cause() }, "Awful idea");
-                unsafe {
-                    pop(caught_ex2);
-                }
+                let result = unsafe {
+                    ActiveBackend::intercept::<_, _, String>(|| {
+                        ActiveBackend::throw(String::from("Awful idea"));
+                    })
+                };
+                let (caught_ex2, _) = result.unwrap_err();
+                assert_eq!(caught_ex2, "Awful idea");
             }
         }
 
-        let ex1 = push(String::from("Hello, world!"));
-        let result = ActiveBackend::intercept(|| {
-            let _dropper = Dropper;
-            unsafe {
-                ActiveBackend::throw(Exception::header(ex1));
-            }
-        });
-        let caught_ex1 = unsafe { Exception::from_header(result.unwrap_err()) };
-        assert_eq!(caught_ex1, ex1);
-        assert_eq!(unsafe { (*caught_ex1).cause() }, "Hello, world!");
-        unsafe {
-            pop(caught_ex1);
-        }
+        let result = unsafe {
+            ActiveBackend::intercept::<_, _, String>(|| {
+                let _dropper = Dropper;
+                ActiveBackend::throw(String::from("Hello, world!"));
+            })
+        };
+        let (caught_ex1, _) = result.unwrap_err();
+        assert_eq!(caught_ex1, "Hello, world!");
     }
 }

@@ -2,7 +2,7 @@
 // - https://github.com/rust-lang/rust/blob/master/library/panic_unwind/src/seh.rs
 // with inspiration from ReactOS and Wine sources.
 
-use super::Backend;
+use super::{RethrowHandle, ThrowByValue};
 use core::marker::{FnPtr, PhantomData};
 use core::mem::ManuallyDrop;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -20,18 +20,11 @@ pub(crate) struct ActiveBackend;
 /// caught an exception by another Rust std; we'll use it for our own purposes by providing a unique
 /// canary value.
 // SAFETY: SEH satisfies the requirements.
-unsafe impl Backend for ActiveBackend {
-    type ExceptionHeader = Header;
-
-    fn new_header() -> Header {
-        Header {
-            canary: (&raw const THROW_INFO).cast(), // any static will work
-            caught: false,
-        }
-    }
+unsafe impl ThrowByValue for ActiveBackend {
+    type RethrowHandle<E> = SehRethrowHandle;
 
     #[inline]
-    unsafe fn throw(ex: *mut Header) -> ! {
+    unsafe fn throw<E>(cause: E) -> ! {
         // We have to initialize these variables late because we can't ask the linker to do the
         // relative address computation for us. Using atomics for this removes races in Rust code,
         // but atomic writes can still race with non-atomic reads in the vcruntime code. Luckily, we
@@ -46,25 +39,25 @@ unsafe impl Backend for ActiveBackend {
             .catchable_type_array
             .write(SmallPtr::new(&raw const CATCHABLE_TYPE_ARRAY));
 
-        // SAFETY: THROW_INFO exists for the whole duration of the program.
+        // SAFETY: We've just initialized the tables.
         unsafe {
-            cxx_throw(ex, &raw const THROW_INFO);
+            do_throw(cause);
         }
     }
 
     #[inline]
-    fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
-        union Data<Func, R> {
+    unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, SehRethrowHandle)> {
+        union Data<Func, R, E> {
             func: ManuallyDrop<Func>,
             result: ManuallyDrop<R>,
-            ex: *mut Header,
+            cause: ManuallyDrop<E>,
         }
 
         #[inline]
-        fn do_call<Func: FnOnce() -> R, R>(data: *mut u8) {
+        fn do_call<Func: FnOnce() -> R, R, E>(data: *mut u8) {
             // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer
             // to the `data` variable.
-            let data: &mut Data<Func, R> = unsafe { &mut *data.cast() };
+            let data: &mut Data<Func, R, E> = unsafe { &mut *data.cast() };
             // SAFETY: This function is called at the start of the process, so the `func` field is
             // still initialized.
             let func = unsafe { ManuallyDrop::take(&mut data.func) };
@@ -72,28 +65,31 @@ unsafe impl Backend for ActiveBackend {
         }
 
         #[inline]
-        fn do_catch<Func: FnOnce() -> R, R>(data: *mut u8, ex: *mut u8) {
+        fn do_catch<Func: FnOnce() -> R, R, E>(data: *mut u8, ex: *mut u8) {
             // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer
             // to the `data` variable.
-            let data: &mut Data<Func, R> = unsafe { &mut *data.cast() };
-            let ex: *mut Header = ex.cast();
+            let data: &mut Data<Func, R, E> = unsafe { &mut *data.cast() };
+            let ex: *mut Exception<E> = ex.cast();
 
             // Rethrow foreign exceptions, as well as Rust panics.
             // SAFETY: If `ex` is non-null, it's a `rust_panic` exception, which can either be
-            // thrown by us or by the Rust runtime; both have the `canary` field as the first field
-            // in their structures.
-            if ex.is_null() || unsafe { (*ex).canary } != (&raw const THROW_INFO).cast() {
+            // thrown by us or by the Rust runtime; both have the `header.canary` field as the first
+            // field in their structures.
+            if ex.is_null() || unsafe { (*ex).header.canary } != (&raw const THROW_INFO).cast() {
                 // SAFETY: Rethrowing is always valid.
                 unsafe {
                     cxx_throw(core::ptr::null_mut(), core::ptr::null());
                 }
             }
 
-            // SAFETY: This is our exception, so `ex` points at a valid instance of `Header`.
+            // SAFETY: This is our exception, so `ex` points at a valid instance of `Exception<E>`.
             unsafe {
-                (*ex).caught = true;
+                (*ex).header.caught = true;
             }
-            data.ex = ex.cast();
+            // SAFETY: As above.
+            let cause = unsafe { &mut (*ex).cause };
+            // SAFETY: We only read the cause here, so no double copies.
+            data.cause = ManuallyDrop::new(unsafe { ManuallyDrop::take(cause) });
         }
 
         let mut data = Data {
@@ -103,9 +99,9 @@ unsafe impl Backend for ActiveBackend {
         // SAFETY: `do_catch` doesn't do anything that might unwind
         if unsafe {
             core::intrinsics::catch_unwind(
-                do_call::<Func, R>,
+                do_call::<Func, R, E>,
                 (&raw mut data).cast(),
-                do_catch::<Func, R>,
+                do_catch::<Func, R, E>,
             )
         } == 0i32
         {
@@ -116,16 +112,53 @@ unsafe impl Backend for ActiveBackend {
 
         // SAFETY: If a non-zero value was returned, unwinding has happened, so `do_catch` was
         // invoked, thus `data.ex` is initialized now.
-        let ex = unsafe { data.ex };
+        let cause = ManuallyDrop::into_inner(unsafe { data.cause });
+        Err((cause, SehRethrowHandle))
+    }
+}
 
-        Err(ex)
+#[derive(Debug)]
+pub(crate) struct SehRethrowHandle;
+
+impl RethrowHandle for SehRethrowHandle {
+    unsafe fn rethrow<F>(self, new_cause: F) -> ! {
+        // SAFETY: This is a rethrow, so the first throw must have initialized the tables.
+        unsafe {
+            do_throw(new_cause);
+        }
+    }
+}
+
+/// Throw an exception as a C++ exception.
+///
+/// # Safety
+///
+/// The caller must ensure all global tables are initialized.
+unsafe fn do_throw<E>(cause: E) -> ! {
+    let mut exception = Exception {
+        header: ExceptionHeader {
+            canary: (&raw const THROW_INFO).cast(), // any static will work
+            caught: false,
+        },
+        cause: ManuallyDrop::new(cause),
+    };
+
+    // SAFETY: THROW_INFO exists for the whole duration of the program.
+    unsafe {
+        cxx_throw((&raw mut exception).cast(), &raw const THROW_INFO);
     }
 }
 
 #[repr(C)]
-pub(crate) struct Header {
+struct ExceptionHeader {
     canary: *const (), // From Rust ABI
     caught: bool,
+}
+
+#[repr(C)]
+struct Exception<E> {
+    header: ExceptionHeader,
+    cause: ManuallyDrop<E>,
 }
 
 #[cfg(target_arch = "x86")]
@@ -144,7 +177,7 @@ macro_rules! thiscall {
 #[repr(C)]
 struct ExceptionRecordParameters {
     magic: usize,
-    exception_object: *mut Header,
+    exception_object: *mut ExceptionHeader,
     throw_info: *const ThrowInfo,
     #[cfg(target_pointer_width = "64")]
     image_base: *const u8,
@@ -153,7 +186,7 @@ struct ExceptionRecordParameters {
 #[repr(C)]
 struct ThrowInfo {
     attributes: u32,
-    destructor: SmallPtr<thiscall!(fn(*mut Header))>,
+    destructor: SmallPtr<thiscall!(fn(*mut ExceptionHeader))>,
     forward_compat: SmallPtr<fn()>,
     catchable_type_array: SmallPtr<*const CatchableTypeArray>,
 }
@@ -170,7 +203,9 @@ struct CatchableType {
     type_descriptor: SmallPtr<*const TypeDescriptor>,
     this_displacement: PointerToMemberData,
     size_or_offset: i32,
-    copy_function: SmallPtr<thiscall!(fn(*mut Header, *const Header) -> *mut Header)>,
+    copy_function: SmallPtr<
+        thiscall!(fn(*mut ExceptionHeader, *const ExceptionHeader) -> *mut ExceptionHeader),
+    >,
 }
 
 #[repr(C)]
@@ -242,7 +277,7 @@ fn abort() -> ! {
 
 macro_rules! define_fns {
     ($abi:tt) => {
-        unsafe extern $abi fn cleanup(ex: *mut Header) {
+        unsafe extern $abi fn cleanup(ex: *mut ExceptionHeader) {
             // SAFETY: `ex` is a `this` pointer when called by the C++ runtime.
             if !unsafe { (*ex).caught } {
                 // Caught by the cxx runtime
@@ -250,7 +285,7 @@ macro_rules! define_fns {
             }
         }
 
-        unsafe extern $abi fn copy(_to: *mut Header, _from: *const Header) -> *mut Header {
+        unsafe extern $abi fn copy(_to: *mut ExceptionHeader, _from: *const ExceptionHeader) -> *mut ExceptionHeader {
             abort();
         }
     };
@@ -337,7 +372,7 @@ extern "system-unwind" {
 ///
 /// `throw_info` must point to a correctly initialized `ThrowInfo` value, valid for the whole
 /// duration of the unwinding procedure.
-unsafe fn cxx_throw(exception_object: *mut Header, throw_info: *const ThrowInfo) -> ! {
+unsafe fn cxx_throw(exception_object: *mut ExceptionHeader, throw_info: *const ThrowInfo) -> ! {
     // This is a reimplementation of `_CxxThrowException`, with quite a few information hardcoded
     // and functions calls inlined.
     let mut parameters = ExceptionRecordParameters {

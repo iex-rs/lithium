@@ -1,4 +1,4 @@
-use super::Backend;
+use super::ThrowByPointer;
 use core::panic::AssertUnwindSafe;
 use std::panic::{catch_unwind, resume_unwind};
 
@@ -46,7 +46,7 @@ pub(crate) struct ActiveBackend;
 /// [1]: https://github.com/rust-lang/unsafe-code-guidelines/issues/256
 // SAFETY: We basically use Rust's own mechanism for unwinding (panics), which satisfies all
 // requirements.
-unsafe impl Backend for ActiveBackend {
+unsafe impl ThrowByPointer for ActiveBackend {
     type ExceptionHeader = LithiumMarker;
 
     fn new_header() -> LithiumMarker {

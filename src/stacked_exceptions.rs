@@ -1,10 +1,83 @@
 use super::{
-    backend::{ActiveBackend, Backend},
+    backend::{ActiveBackend, RethrowHandle, ThrowByPointer, ThrowByValue},
     heterogeneous_stack::unbounded::Stack,
 };
 use core::mem::{offset_of, ManuallyDrop};
 
-type Header = <ActiveBackend as Backend>::ExceptionHeader;
+// SAFETY:
+// - The main details are forwarded to the `ThrowByPointer` impl.
+// - We ask the impl not to modify the object, just the header, so the object stays untouched.
+unsafe impl ThrowByValue for ActiveBackend {
+    type RethrowHandle<E> = PointerRethrowHandle<E>;
+
+    unsafe fn throw<E>(cause: E) -> ! {
+        let ex = push(cause);
+        // SAFETY: Just allocated.
+        let ex = unsafe { Exception::header(ex) };
+        // SAFETY:
+        // - The exception is a unique pointer to an exception object, as allocated by `push`.
+        // - "Don't mess with exceptions" is required transitively.
+        unsafe {
+            <Self as ThrowByPointer>::throw(ex);
+        }
+    }
+
+    unsafe fn intercept<Func: FnOnce() -> R, R, E>(
+        func: Func,
+    ) -> Result<R, (E, Self::RethrowHandle<E>)> {
+        <Self as ThrowByPointer>::intercept(func).map_err(|ex| {
+            // SAFETY: By the safety requirement, unwinding could only happen from `throw` with type
+            // `E`. Backend guarantees the pointer is passed as-is, and `throw` only throws unique
+            // pointers to valid instances of `Exception<E>` via the backend.
+            let ex = unsafe { Exception::<E>::from_header(ex) };
+            let cause = {
+                // SAFETY: Same as above.
+                let ex_ref = unsafe { &mut *ex };
+                // SAFETY: We only read the cause here once.
+                unsafe { ex_ref.cause() }
+            };
+            (cause, PointerRethrowHandle { ex })
+        })
+    }
+}
+
+// Type invariant: `ex` is a unique pointer to the exception object on the exception stack.
+#[derive(Debug)]
+pub(crate) struct PointerRethrowHandle<E> {
+    ex: *mut Exception<E>,
+}
+
+impl<E> Drop for PointerRethrowHandle<E> {
+    #[inline]
+    fn drop(&mut self) {
+        // SAFETY:
+        // - `ex` is a unique pointer to the exception object by the type invariant.
+        // - The safety requirement on `intercept` requires that all exceptions that are thrown
+        //   between `intercept` and `drop` are balanced. This exception was at the top of the stack
+        //   when `intercept` returned, so it must still be at the top when `drop` is invoked.
+        unsafe { pop(self.ex) }
+    }
+}
+
+impl<E> RethrowHandle for PointerRethrowHandle<E> {
+    unsafe fn rethrow<F>(self, new_cause: F) -> ! {
+        let ex = core::mem::ManuallyDrop::new(self);
+        // SAFETY: The same logic that proves `pop` in `drop` is valid applies here. We're not
+        // *really* dropping `self`, but the user code does not know that.
+        let ex = unsafe { replace_last(ex.ex, new_cause) };
+        // SAFETY: Just allocated.
+        let ex = unsafe { Exception::header(ex) };
+        // SAFETY:
+        // - `ex` is a unique pointer to the exception object because it was just produced by
+        //   `replace_last`.
+        // - "Don't mess with exceptions" is required transitively.
+        unsafe {
+            <ActiveBackend as ThrowByPointer>::throw(ex);
+        }
+    }
+}
+
+type Header = <ActiveBackend as ThrowByPointer>::ExceptionHeader;
 
 /// An exception object, to be used by the backend.
 pub struct Exception<E> {
