@@ -10,6 +10,7 @@ use core::mem::{offset_of, ManuallyDrop};
 unsafe impl ThrowByValue for ActiveBackend {
     type RethrowHandle<E> = PointerRethrowHandle<E>;
 
+    #[inline]
     unsafe fn throw<E>(cause: E) -> ! {
         let ex = push(cause);
         // SAFETY: Just allocated.
@@ -22,6 +23,7 @@ unsafe impl ThrowByValue for ActiveBackend {
         }
     }
 
+    #[inline]
     unsafe fn intercept<Func: FnOnce() -> R, R, E>(
         func: Func,
     ) -> Result<R, (E, Self::RethrowHandle<E>)> {
@@ -60,6 +62,7 @@ impl<E> Drop for PointerRethrowHandle<E> {
 }
 
 impl<E> RethrowHandle for PointerRethrowHandle<E> {
+    #[inline]
     unsafe fn rethrow<F>(self, new_cause: F) -> ! {
         let ex = core::mem::ManuallyDrop::new(self);
         // SAFETY: The same logic that proves `pop` in `drop` is valid applies here. We're not

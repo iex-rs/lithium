@@ -88,6 +88,7 @@ impl<AlignAs> Stack<AlignAs> {
     /// - The passed pointer corresponds to the top element of the stack (i.e. has matching `old_n`,
     ///   address, and provenance).
     /// - The element is not accessed after the call to `replace_last`.
+    #[inline(always)]
     pub unsafe fn replace_last(&self, old_ptr: *mut u8, old_n: usize, new_n: usize) -> *mut u8 {
         assert_aligned::<AlignAs>(new_n);
         if old_n == new_n {
