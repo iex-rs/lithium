@@ -112,7 +112,58 @@ unsafe impl Backend for ActiveBackend {
 pub struct Header {
     class: u64,
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
-    private: MaybeUninit<[*const (); 2]>,
+    private: MaybeUninit<[*const (); get_unwinder_private_word_count()]>,
+}
+
+// Copied gay from https://github.com/rust-lang/rust/blob/master/library/unwind/src/libunwind.rs
+const fn get_unwinder_private_word_count() -> usize {
+    // The Itanium EH ABI says the structure contains 2 private uint64_t words. Some architectures
+    // decided this means "2 private native words". So on some 32-bit architectures this is two
+    // 64-bit words, which together with padding amount to 5 native words, and on other
+    // architectures it's two native words. Others are just morons.
+    if cfg!(target_arch = "x86") {
+        5
+    } else if cfg!(any(
+        all(target_arch = "x86_64"),
+        all(target_arch = "aarch64", target_pointer_width = "64"),
+    )) {
+        if cfg!(windows) {
+            6
+        } else {
+            2
+        }
+    } else if cfg!(target_arch = "arm") {
+        if cfg!(target_vendor = "apple") {
+            5
+        } else {
+            20
+        }
+    } else if cfg!(all(target_arch = "aarch64", target_pointer_width = "32")) {
+        5
+    } else if cfg!(target_os = "emscripten") {
+        20
+    } else if cfg!(all(target_arch = "hexagon", target_os = "linux")) {
+        35
+    } else if cfg!(any(
+        target_arch = "m68k",
+        target_arch = "mips",
+        target_arch = "mips32r6",
+        target_arch = "csky",
+        target_arch = "mips64",
+        target_arch = "mips64r6",
+        target_arch = "powerpc",
+        target_arch = "powerpc64",
+        target_arch = "s390x",
+        target_arch = "sparc",
+        target_arch = "sparc64",
+        target_arch = "riscv64",
+        target_arch = "riscv32",
+        target_arch = "loongarch64"
+    )) {
+        2
+    } else {
+        panic!("Unsupported architecture");
+    }
 }
 
 unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
