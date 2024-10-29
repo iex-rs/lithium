@@ -15,7 +15,7 @@ typeid = "1.0.2"
 
 [dev-dependencies]
 anyhow = "1"
-criterion = "0.4"
+criterion = "0.5"
 replace_with = "0.1.7"
 
 [build-dependencies]
