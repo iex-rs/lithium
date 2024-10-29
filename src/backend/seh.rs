@@ -19,6 +19,10 @@ pub(crate) struct ActiveBackend;
 /// exceptions. Luckily, Rust already puts a `canary` field in the exception object to check if it's
 /// caught an exception by another Rust std; we'll use it for our own purposes by providing a unique
 /// canary value.
+///
+/// SEH has its share of problems, but one cool detail is that stack is not unwinded until the catch
+/// handler returns. This means that we can save the exception object on stack and then copy it to
+/// the destination from the catch handler, thus reducing allocations.
 // SAFETY: SEH satisfies the requirements.
 unsafe impl ThrowByValue for ActiveBackend {
     type RethrowHandle<E> = SehRethrowHandle;
