@@ -108,7 +108,9 @@ unsafe impl ThrowByPointer for ActiveBackend {
     }
 }
 
-#[repr(C, align(16))]
+#[repr(C)]
+#[cfg_attr(target_pointer_width = "32", repr(align(8)))]
+#[cfg_attr(target_pointer_width = "64", repr(align(16)))]
 pub struct Header {
     class: u64,
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
