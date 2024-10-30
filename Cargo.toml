@@ -11,6 +11,7 @@ edition = "2021"
 links = "rustlithium"  # Force uniqueness of crate version
 
 [dependencies]
+sptr = "0.3.2"
 typeid = "1.0.2"
 
 [dev-dependencies]

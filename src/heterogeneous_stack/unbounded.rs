@@ -1,5 +1,11 @@
 use super::{align::assert_aligned, array::Stack as BoundedStack, heap::Heap};
 
+#[allow(
+    unused_imports,
+    reason = "XXX: remove when strict provenance is stabilized"
+)]
+use sptr::Strict;
+
 /// A thread-unsafe heterogeneous stack, using statically allocated space when possible.
 ///
 /// Although the stack doesn't track runtime types, all elements are considered independent. Stack

@@ -140,6 +140,10 @@
     clippy::inline_always,
     reason = "I'm not an idiot, this is a result of benchmarking/profiling"
 )]
+#![allow(
+    unstable_name_collisions,
+    reason = "XXX: remove when strict provenance is stabilized"
+)]
 
 extern crate alloc;
 
