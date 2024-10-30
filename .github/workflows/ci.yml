@@ -1,0 +1,183 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux-native:
+    runs-on: ${{ matrix.os }}
+    if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        libc: [gnu, musl]
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: buildjet-2vcpu-ubuntu-2204-arm
+            arch: aarch64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Add target
+        run: rustup target add ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
+      - name: Test with panic backend
+        run: LITHIUM_BACKEND=panic cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
+      - name: Test with Itanium backend
+        run: LITHIUM_BACKEND=itanium cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
+
+  linux-cross:
+    runs-on: ubuntu-latest
+    if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-linux-android
+          - arm-linux-androideabi
+          - armv7-linux-androideabi
+          - arm-unknown-linux-gnueabi
+          - arm-unknown-linux-gnueabihf
+          - arm-unknown-linux-musleabi
+          - arm-unknown-linux-musleabihf
+          - armv7-unknown-linux-gnueabihf
+          - i686-unknown-linux-gnu
+          - i686-unknown-linux-musl
+          - loongarch64-unknown-linux-gnu
+          - loongarch64-unknown-linux-musl
+          - mips64-unknown-linux-gnuabi64
+          - mips64el-unknown-linux-gnuabi64
+          - powerpc64-unknown-linux-gnu
+          - powerpc64le-unknown-linux-gnu
+          - riscv64gc-unknown-linux-gnu
+          - s390x-unknown-linux-gnu
+          - sparc64-unknown-linux-gnu
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Install Cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+      - name: Test with panic backend
+        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }}
+      - name: Test with Itanium backend
+        run: LITHIUM_BACKEND=itanium cross test --target ${{ matrix.target }}
+
+  darwin:
+    runs-on: ${{ matrix.os }}
+    if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-13  # x86_64
+          - macos-15  # aarch64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Test with panic backend
+        run: LITHIUM_BACKEND=panic cargo test
+      - name: Test with Itanium backend
+        run: LITHIUM_BACKEND=itanium cargo test
+
+  windows:
+    runs-on: windows-latest
+    if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, i686]
+        abi: [msvc, gnu]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set default-host
+        run: rustup set default-host ${{ matrix.arch }}-pc-windows-${{ matrix.abi }}
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Test with panic backend
+        run: set LITHIUM_BACKEND=panic && cargo test
+      - name: Test with SEH backend
+        if: matrix.abi == 'msvc'
+        run: set LITHIUM_BACKEND=seh && cargo test
+      - name: Test with Itanium backend
+        if: matrix.abi == 'gnu'
+        run: set LITHIUM_BACKEND=itanium && cargo test
+
+  miri-linux:
+    runs-on: ubuntu-latest
+    if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - i686-unknown-linux-gnu
+          - powerpc64-unknown-linux-gnu
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Install Miri
+        run: rustup component add miri
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+      - name: Test with panic backend
+        run: LITHIUM_BACKEND=panic cargo miri test --target ${{ matrix.target }}
+      - name: Test with Itanium backend
+        run: LITHIUM_BACKEND=itanium cargo miri test --target ${{ matrix.target }}
+
+  valgrind:
+    runs-on: ubuntu-latest
+    if: success() || failure()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Install cargo valgrind
+        run: sudo apt-get update && sudo apt-get install valgrind && cargo install cargo-valgrind
+      - name: Test with panic backend
+        run: LITHIUM_BACKEND=panic cargo valgrind test
+      - name: Test with Itanium backend
+        run: LITHIUM_BACKEND=itanium cargo valgrind test
+
+  # TODO: Restore this when strict provenance APIs are in stable.
+  # test_stable:
+  #   runs-on: ubuntu-latest
+  #   if: success() || failure()
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #     - name: Install Rust
+  #       run: rustup update stable && rustup default stable
+  #     - name: Test with panic backend
+  #       run: cargo test
+
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [panic, itanium, seh]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Install rustfmt and clippy
+        run: rustup component add rustfmt clippy
+      - name: Rustfmt
+        run: LITHIUM_BACKEND=${{ matrix.backend }} cargo fmt -- --check
+      - name: Clippy
+        run: LITHIUM_BACKEND=${{ matrix.backend }} cargo clippy -- -D warnings

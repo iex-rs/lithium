@@ -1,0 +1,14 @@
+[build.env]
+passthrough = ["LITHIUM_BACKEND"]
+
+[target.mips-unknown-linux-gnu]
+build-std = ["std"]
+
+[target.mips64-unknown-linux-gnuabi64]
+build-std = ["std"]
+
+[target.mips64el-unknown-linux-gnuabi64]
+build-std = ["std"]
+
+[target.mipsel-unknown-linux-gnu]
+build-std = ["std"]
