@@ -16,11 +16,13 @@ fn main() {
         && (std::env::var_os("CARGO_CFG_UNIX").is_some()
             || (std::env::var_os("CARGO_CFG_WINDOWS").is_some()
                 && std::env::var_os("CARGO_CFG_TARGET_ENV").is_some_and(|env| env == "gnu")))
+        && std::env::var_os("CARGO_CFG_TARGET_OS").is_none_or(|os| os != "emscripten")
     {
         println!("cargo::rustc-cfg=backend=\"itanium\"");
     } else if version_meta().unwrap().channel == Channel::Nightly
         && (std::env::var_os("CARGO_CFG_WINDOWS").is_some()
             && std::env::var_os("CARGO_CFG_TARGET_ENV").is_some_and(|env| env == "msvc"))
+        && !is_miri
     {
         println!("cargo::rustc-cfg=backend=\"seh\"");
     } else {
