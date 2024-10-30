@@ -14,6 +14,8 @@
 //! Throw an exception with [`throw`], catch it with [`catch`] or the more low-level [`intercept`].
 //! Unlike with Rust panics, non-[`Send`] and non-`'static` types can be used soundly.
 //!
+//! Using the `panic = "abort"` strategy breaks Lithium; avoid doing that.
+//!
 //! For interop, all crates that depend on Lithium need to use the same version:
 //!
 //! ```toml
@@ -24,17 +26,22 @@
 //!
 //! # Platform support
 //!
-//! At the moment, the custom mechanism is only supported on nightly on the following platforms:
+//! On stable Rust, Lithium uses the built-in panic mechanism, tweaking it to increase performance
+//! just a little bit.
 //!
-//! - Unix-like targets (Linux and macOS included)
-//! - Windows (both MinGW and MSVC)
-//! - WASM
+//! On nightly Rust, Lithium uses a custom mechanism on the following targets:
 //!
-//! This mechanism works with `#![no_std]`, as long as the Itanium EH unwinder is linked in. Use
-//! `default-features = false` feature to enable no-std support.
+//! |Target             |Implementation|Performance                                  |`no_std` support|
+//! |-------------------|--------------|---------------------------------------------|----------------|
+//! |Linux, macOS       |Itanium EH ABI|2.5x faster than panics                      |Yes             |
+//! |Windows (MSVC ABI) |SEH           |1.5x faster than panics                      |Yes             |
+//! |Windows (GNU ABI)  |Itanium EH ABI|2.5x faster than panics, but slower than MSVC|No              |
 //!
-//! On stable, when compiled with MSVC on Windows, or on more exotic platforms, exception handling
-//! is gracefully degraded to Rust panics. This requires `std`.
+//! Lithium strives to support all targets that Rust panics support. If Lithium does not work
+//! correctly on such a target, please open an issue.
+//!
+//! `no_std` support can be enabled by using `default-features = false` (only on nightly). This
+//! requires an Itanium EH unwinder to be linked in on targets that use it as the implementation.
 //!
 //!
 //! # Safety
