@@ -160,7 +160,7 @@ unsafe fn get_stack() -> &'static Stack<Header> {
     #[cfg(not(feature = "std"))]
     // SAFETY: We require the caller to not use the reference anywhere near the end of the thread,
     // so if `&STACK` is sound in the first place, there is no problem.
-    return unsafe { core::mem::transmute(&STACK) };
+    return unsafe { core::mem::transmute::<&Stack<Header>, &'static Stack<Header>>(&STACK) };
 }
 
 const fn get_alloc_size<E>() -> usize {
