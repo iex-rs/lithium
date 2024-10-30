@@ -14,7 +14,17 @@ unsafe impl ThrowByPointer for ActiveBackend {
         Header {
             class: LITHIUM_EXCEPTION_CLASS,
             cleanup: Some(cleanup),
-            private: MaybeUninit::uninit(),
+            // ARM EH ABI [1] requires that the first private field is initialized to 0 before the
+            // unwind routines see it. This is not necessary for other architectures (except C6x),
+            // but being consistent doesn't hurt. In practice, libgcc uses this field to store force
+            // unwinding information, so leaving this uninitialized leads to SIGILLs and SIGSEGVs
+            // because it uses the field as a callback address. Strictly speaking, we should
+            // reinitialize this field back to zero when we do `_Unwind_RaiseException` later, but
+            // this is unnecessary for libgcc, and libunwind uses the cross-platform mechanism for
+            // ARM too.
+            // [1]: https://github.com/ARM-software/abi-aa/blob/76d56124610302e645b66ac4e491be0c1a90ee11/ehabi32/ehabi32.rst#language-independent-unwinding-types-and-functions
+            private1: core::ptr::null(),
+            private_rest: MaybeUninit::uninit(),
         }
     }
 
@@ -124,7 +134,9 @@ unsafe impl ThrowByPointer for ActiveBackend {
 pub struct Header {
     class: u64,
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
-    private: MaybeUninit<[*const (); get_unwinder_private_word_count()]>,
+    // See `new_header` for why this needs to be a separate field.
+    private1: *const (),
+    private_rest: MaybeUninit<[*const (); get_unwinder_private_word_count() - 1]>,
 }
 
 // Copied gay from https://github.com/rust-lang/rust/blob/master/library/unwind/src/libunwind.rs
