@@ -23,7 +23,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
         // SAFETY: We provide a valid exception header.
         unsafe {
             #[expect(clippy::used_underscore_items, reason = "External API")]
-            _Unwind_RaiseException(ex);
+            _Unwind_RaiseException(ex.cast());
         }
     }
 
@@ -32,7 +32,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
         union Data<Func, R> {
             func: ManuallyDrop<Func>,
             result: ManuallyDrop<R>,
-            ex: *mut Header,
+            ex: *mut u8,
         }
 
         #[inline]
@@ -51,7 +51,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
             // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer
             // to the `data` variable.
             let data: &mut Data<Func, R> = unsafe { &mut *data.cast() };
-            data.ex = ex.cast();
+            data.ex = ex;
         }
 
         let mut data = Data {
@@ -78,8 +78,12 @@ unsafe impl ThrowByPointer for ActiveBackend {
 
         // SAFETY: `ex` is a pointer to an exception object as provided by the unwinder, so it must
         // be valid for reads. It's not explicitly documented that the class is not modified in
-        // runtime, but that sounds like common sense.
-        if unsafe { (*ex).class } != LITHIUM_EXCEPTION_CLASS {
+        // runtime, but that sounds like common sense. Note that we only dereference the class
+        // rather than the whole `Header`, as we don't know whether `ex` is aligned to `Header`, but
+        // it must be at least aligned for `u64` access.
+        let class = unsafe { *ex.cast::<u64>() };
+
+        if class != LITHIUM_EXCEPTION_CLASS {
             // SAFETY: The EH ABI allows rethrowing foreign exceptions under the following
             // conditions:
             // - The exception is not modified or otherwise interacted with. We don't do this,
@@ -104,13 +108,18 @@ unsafe impl ThrowByPointer for ActiveBackend {
             }
         }
 
-        Err(ex)
+        Err(ex.cast())
     }
 }
 
-#[repr(C)]
-#[cfg_attr(target_pointer_width = "32", repr(align(8)))]
-#[cfg_attr(target_pointer_width = "64", repr(align(16)))]
+// The alignment on this structure is... complicated. GCC uses `__attribute__((aligned))` here and
+// expects everyone else to do the same, but we don't have that in Rust. The rules for computing the
+// default (maximum) alignment are unclear. If we guess too low, the unwinder might access unaligned
+// data, so we use 16 bytes on all platforms to keep safe. This includes 32-bit machines, becuase on
+// i386 `__attribute__((aligned))` aligns to 16 bytes too. Therefore, the alignment of this
+// structure might be larger than the actual alignment when we access foreign exceptions, so we
+// can't use this type for that.
+#[repr(C, align(16))]
 pub struct Header {
     class: u64,
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
@@ -181,5 +190,5 @@ unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
 }
 
 extern "C-unwind" {
-    fn _Unwind_RaiseException(ex: *mut Header) -> !;
+    fn _Unwind_RaiseException(ex: *mut u8) -> !;
 }
