@@ -1,8 +1,16 @@
 use rustc_version::{version_meta, Channel};
 
+fn has_cfg(name: &str) -> bool {
+    std::env::var_os(format!("CARGO_CFG_{}", name.to_uppercase())).is_some()
+}
+
+fn cfg(name: &str) -> String {
+    std::env::var(format!("CARGO_CFG_{}", name.to_uppercase())).unwrap_or_default()
+}
+
 fn main() {
     println!("cargo::rerun-if-env-changed=MIRIFLAGS");
-    let is_miri = std::env::var_os("CARGO_CFG_MIRI").is_some();
+    let is_miri = has_cfg("miri");
     let is_tree_borrows =
         std::env::var("MIRIFLAGS").is_ok_and(|flags| flags.contains("-Zmiri-tree-borrows"));
     if is_miri && !is_tree_borrows {
@@ -13,15 +21,12 @@ fn main() {
     if let Ok(backend) = std::env::var("LITHIUM_BACKEND") {
         println!("cargo::rustc-cfg=backend=\"{backend}\"");
     } else if version_meta().unwrap().channel == Channel::Nightly
-        && (std::env::var_os("CARGO_CFG_UNIX").is_some()
-            || (std::env::var_os("CARGO_CFG_WINDOWS").is_some()
-                && std::env::var_os("CARGO_CFG_TARGET_ENV").is_some_and(|env| env == "gnu")))
-        && std::env::var_os("CARGO_CFG_TARGET_OS").is_none_or(|os| os != "emscripten")
+        && (has_cfg("unix") || (has_cfg("windows") && cfg("target_env") == "gnu"))
+        && cfg("target_os") != "emscripten"
     {
         println!("cargo::rustc-cfg=backend=\"itanium\"");
     } else if version_meta().unwrap().channel == Channel::Nightly
-        && (std::env::var_os("CARGO_CFG_WINDOWS").is_some()
-            && std::env::var_os("CARGO_CFG_TARGET_ENV").is_some_and(|env| env == "msvc"))
+        && (has_cfg("windows") && cfg("target_env") == "msvc")
         && !is_miri
     {
         println!("cargo::rustc-cfg=backend=\"seh\"");
