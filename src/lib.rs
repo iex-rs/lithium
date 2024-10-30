@@ -77,7 +77,7 @@
 //! used by the crate match, all safe user-supplied callbacks are sound to call, because safe
 //! callbacks can only interact with exceptions in an isolated manner.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![cfg_attr(not(feature = "std"), feature(thread_local))]
 #![cfg_attr(
     any(backend = "itanium", backend = "seh"),

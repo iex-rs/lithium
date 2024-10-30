@@ -31,6 +31,8 @@ jobs:
         run: LITHIUM_BACKEND=panic cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
       - name: Test with Itanium backend
         run: LITHIUM_BACKEND=itanium cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
+      - name: Test without std
+        run: cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }} --no-default-features
 
   linux-cross:
     runs-on: ubuntu-latest
@@ -69,6 +71,8 @@ jobs:
         run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }}
       - name: Test with Itanium backend
         run: LITHIUM_BACKEND=itanium cross test --target ${{ matrix.target }}
+      - name: Test without std
+        run: cross test --target ${{ matrix.target }} --no-default-features
 
   darwin:
     runs-on: ${{ matrix.os }}
@@ -88,6 +92,8 @@ jobs:
         run: LITHIUM_BACKEND=panic cargo test
       - name: Test with Itanium backend
         run: LITHIUM_BACKEND=itanium cargo test
+      - name: Test without std
+        run: cargo test
 
   windows:
     runs-on: windows-latest
@@ -112,6 +118,9 @@ jobs:
       - name: Test with Itanium backend
         if: matrix.abi == 'gnu'
         run: set LITHIUM_BACKEND=itanium && cargo test
+      - name: Test without std
+        if: matrix.abi == 'msvc'
+        run: cargo test --no-default-features
 
   miri-linux:
     runs-on: ubuntu-latest
@@ -136,6 +145,8 @@ jobs:
         run: LITHIUM_BACKEND=panic cargo miri test --target ${{ matrix.target }}
       - name: Test with Itanium backend
         run: LITHIUM_BACKEND=itanium cargo miri test --target ${{ matrix.target }}
+      - name: Test without std
+        run: cargo miri test --target ${{ matrix.target }} --no-default-features
 
   valgrind:
     runs-on: ubuntu-latest
@@ -151,8 +162,10 @@ jobs:
         run: LITHIUM_BACKEND=panic cargo valgrind test
       - name: Test with Itanium backend
         run: LITHIUM_BACKEND=itanium cargo valgrind test
+      - name: Test without std
+        run: cargo valgrind test --no-default-features
 
-  test_stable:
+  test-stable:
     runs-on: ubuntu-latest
     if: success() || failure()
     steps:
@@ -180,3 +193,6 @@ jobs:
         run: LITHIUM_BACKEND=${{ matrix.backend }} cargo fmt -- --check
       - name: Clippy
         run: LITHIUM_BACKEND=${{ matrix.backend }} cargo clippy -- -D warnings
+      - name: Clippy without std
+        if: matrix.backend != 'panic'
+        run: LITHIUM_BACKEND=${{ matrix.backend }} cargo clippy --no-default-features -- -D warnings
