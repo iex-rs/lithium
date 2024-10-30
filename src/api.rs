@@ -63,7 +63,10 @@ pub unsafe fn throw<E>(cause: E) -> ! {
 ///
 /// assert_eq!(res, Err("Oops!"));
 /// ```
-#[expect(clippy::missing_errors_doc)]
+#[expect(
+    clippy::missing_errors_doc,
+    reason = "`Err` value is described immediately"
+)]
 #[inline]
 pub unsafe fn catch<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
     // SAFETY:
@@ -169,7 +172,10 @@ impl<E> InFlightException<E> {
 /// // SAFETY: g only ever throws Error
 /// println!("{}", unsafe { catch::<_, Error>(|| g()) }.unwrap_err());
 /// ```
-#[expect(clippy::missing_errors_doc)]
+#[expect(
+    clippy::missing_errors_doc,
+    reason = "`Err` value is described immediately"
+)]
 #[inline]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
     // SAFETY: Requirements forwarded.

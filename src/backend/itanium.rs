@@ -22,7 +22,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
     unsafe fn throw(ex: *mut Header) -> ! {
         // SAFETY: We provide a valid exception header.
         unsafe {
-            #[expect(clippy::used_underscore_items)]
+            #[expect(clippy::used_underscore_items, reason = "External API")]
             _Unwind_RaiseException(ex);
         }
     }
@@ -99,7 +99,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
             //   If project-ffi-unwind changes the rustc behavior, we might have to update this
             //   code.
             unsafe {
-                #[expect(clippy::used_underscore_items)]
+                #[expect(clippy::used_underscore_items, reason = "External API")]
                 _Unwind_RaiseException(ex);
             }
         }

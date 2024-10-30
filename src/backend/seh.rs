@@ -390,7 +390,7 @@ unsafe fn cxx_throw(exception_object: *mut ExceptionHeader, throw_info: *const T
         RaiseException(
             EH_EXCEPTION_NUMBER,
             EH_NONCONTINUABLE,
-            #[expect(clippy::arithmetic_side_effects)]
+            #[expect(clippy::arithmetic_side_effects, reason = "This is a constant")]
             (core::mem::size_of::<ExceptionRecordParameters>() / core::mem::size_of::<usize>())
                 .try_into()
                 .unwrap(),

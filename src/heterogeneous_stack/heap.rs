@@ -23,7 +23,10 @@ impl<AlignAs> Heap<AlignAs> {
     /// # Panics
     ///
     /// Panics if `n` is not a multiple of `align_of::<AlignAs>()` or `n` is 0, or if out of memory.
-    #[expect(clippy::unused_self)]
+    #[expect(
+        clippy::unused_self,
+        reason = "Using a static method is harder in presence of generic parameters"
+    )]
     pub fn alloc(&self, n: usize) -> *mut u8 {
         assert_aligned::<AlignAs>(n);
         assert_ne!(n, 0, "Allocating 0 bytes is invalid");
@@ -43,7 +46,10 @@ impl<AlignAs> Heap<AlignAs> {
     /// The caller must ensure that the pointer was produced by a call to [`Heap::alloc`] with the
     /// same value of `n`. In addition, references to the deallocated memory must not be used after
     /// `dealloc` is called.
-    #[expect(clippy::unused_self)]
+    #[expect(
+        clippy::unused_self,
+        reason = "Using a static method is harder in presence of generic parameters"
+    )]
     pub unsafe fn dealloc(&self, ptr: *mut u8, n: usize) {
         // SAFETY: alloc would fail if the preconditions for this weren't established
         let layout = unsafe { Layout::from_size_align_unchecked(n, align_of::<AlignAs>()) };

@@ -46,7 +46,7 @@
 ///
 /// The user of this trait is allowed to reuse the header when rethrowing exceptions. In particular,
 /// the return value of `intercept` may be used as an argument to `throw`.
-#[allow(dead_code)]
+#[allow(dead_code, reason = "This is only used by some of the backends")]
 pub unsafe trait ThrowByPointer {
     /// An exception header.
     ///

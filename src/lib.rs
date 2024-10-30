@@ -74,15 +74,21 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), feature(thread_local))]
-#![cfg_attr(backend = "itanium", expect(internal_features))]
+#![cfg_attr(
+    any(backend = "itanium", backend = "seh"),
+    expect(
+        internal_features,
+        reason = "Can't do anything about core::intrinsics::catch_unwind yet",
+    )
+)]
 #![cfg_attr(backend = "itanium", feature(core_intrinsics))]
 #![cfg_attr(backend = "seh", feature(core_intrinsics, fn_ptr_trait))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
     clippy::cargo,
     clippy::pedantic,
-    clippy::missing_const_for_fn,
     clippy::alloc_instead_of_core,
+    clippy::allow_attributes_without_reason,
     clippy::arithmetic_side_effects,
     clippy::as_underscore,
     clippy::assertions_on_result_states,
@@ -102,6 +108,7 @@
     clippy::inline_asm_x86_att_syntax,
     clippy::mem_forget, // use ManuallyDrop instead
     clippy::missing_assert_message,
+    clippy::missing_const_for_fn,
     clippy::missing_inline_in_public_items,
     clippy::mixed_read_write_in_expression,
     clippy::multiple_unsafe_ops_per_block,
@@ -130,6 +137,10 @@
     clippy::unneeded_field_pattern,
     clippy::unused_result_ok,
     clippy::wildcard_enum_match_arm,
+)]
+#![allow(
+    clippy::inline_always,
+    reason = "I'm not an idiot, this is a result of benchmarking/profiling"
 )]
 
 extern crate alloc;
