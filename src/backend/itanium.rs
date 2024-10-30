@@ -81,6 +81,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
         // runtime, but that sounds like common sense. Note that we only dereference the class
         // rather than the whole `Header`, as we don't know whether `ex` is aligned to `Header`, but
         // it must be at least aligned for `u64` access.
+        #[expect(clippy::cast_ptr_alignment, reason = "See the safety comment above")]
         let class = unsafe { *ex.cast::<u64>() };
 
         if class != LITHIUM_EXCEPTION_CLASS {
