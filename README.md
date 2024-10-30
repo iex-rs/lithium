@@ -1,6 +1,6 @@
 # Lithium
 
-[![License](https://img.shields.io/crates/l/lithium)](LICENSE) [![Version](https://img.shields.io/crates/v/lithium)](https://crates.io/crates/lithium) [![docs.rs](https://img.shields.io/docsrs/lithium)](https://docs.rs/lithium) ![Tests](https://github.com/iex-rs/lithium/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/crates/l/lithium) [![Version](https://img.shields.io/crates/v/lithium)](https://crates.io/crates/lithium) [![docs.rs](https://img.shields.io/docsrs/lithium)](https://docs.rs/lithium) ![Tests](https://github.com/iex-rs/lithium/actions/workflows/ci.yml/badge.svg)
 
 Lightweight exceptions.
 
