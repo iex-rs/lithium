@@ -321,7 +321,7 @@ impl<P> SmallPtr<P> {
     #[inline]
     fn from_erased(p: *const ()) -> Self {
         #[cfg(target_pointer_width = "32")]
-        let value = p.expose_provenance();
+        let value = p.expose_provenance() as u32;
         #[cfg(target_pointer_width = "64")]
         let value = p
             .expose_provenance()
