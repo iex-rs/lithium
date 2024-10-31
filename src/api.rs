@@ -233,7 +233,8 @@ mod test {
         assert_eq!(result.unwrap_err(), "Hello, world! You look nice btw.");
     }
 
-    #[cfg(feature = "std")]
+    // XXX: Upstream bug at https://github.com/rust-lang/rust/issues/132416
+    #[cfg(all(feature = "std", not(target_os = "wasi")))]
     #[test]
     fn panic_while_in_flight() {
         struct Dropper;

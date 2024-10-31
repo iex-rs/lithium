@@ -105,6 +105,23 @@ jobs:
       - name: Test with Emscripten backend (release)
         run: LITHIUM_BACKEND=emscripten cross test --target wasm32-unknown-emscripten --release
 
+  wasi:
+    runs-on: ubuntu-latest
+    if: success() || failure()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install NodeJS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Test with panic backend (debug)
+        run: ./cargo-wasi test --target wasm32-wasip1
+      - name: Test with panic backend (release)
+        run: ./cargo-wasi test --target wasm32-wasip1 --release
+
   darwin:
     runs-on: ${{ matrix.os }}
     if: success() || failure()
