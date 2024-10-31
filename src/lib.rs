@@ -80,14 +80,17 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![cfg_attr(not(feature = "std"), feature(thread_local))]
 #![cfg_attr(
-    any(backend = "itanium", backend = "seh"),
+    any(backend = "itanium", backend = "seh", backend = "emscripten"),
     expect(
         internal_features,
         reason = "Can't do anything about core::intrinsics::catch_unwind yet",
     )
 )]
-#![cfg_attr(backend = "itanium", feature(core_intrinsics))]
-#![cfg_attr(backend = "seh", feature(core_intrinsics, fn_ptr_trait, std_internals))]
+#![cfg_attr(
+    any(backend = "itanium", backend = "seh", backend = "emscripten"),
+    feature(core_intrinsics)
+)]
+#![cfg_attr(backend = "seh", feature(fn_ptr_trait, std_internals))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
     clippy::cargo,
@@ -157,12 +160,12 @@ extern crate alloc;
 mod api;
 mod backend;
 
-#[cfg(any(backend = "itanium", backend = "panic"))]
+#[cfg(any(backend = "itanium", backend = "emscripten", backend = "panic"))]
 mod heterogeneous_stack;
-#[cfg(any(backend = "itanium", backend = "panic"))]
+#[cfg(any(backend = "itanium", backend = "emscripten", backend = "panic"))]
 mod stacked_exceptions;
 
-#[cfg(any(backend = "itanium", backend = "seh"))]
+#[cfg(any(backend = "itanium", backend = "seh", backend = "emscripten"))]
 mod intrinsic;
 
 pub use api::{catch, intercept, throw, InFlightException};

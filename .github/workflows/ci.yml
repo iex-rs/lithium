@@ -97,9 +97,13 @@ jobs:
       - name: Install Cross
         run: cargo install cross --git https://github.com/cross-rs/cross
       - name: Test with panic backend (debug)
-        run: cross test --target wasm32-unknown-emscripten
+        run: LITHIUM_BACKEND=panic cross test --target wasm32-unknown-emscripten
+      - name: Test with Emscripten backend (debug)
+        run: LITHIUM_BACKEND=emscripten cross test --target wasm32-unknown-emscripten
       - name: Test with panic backend (release)
-        run: cross test --target wasm32-unknown-emscripten --release
+        run: LITHIUM_BACKEND=panic cross test --target wasm32-unknown-emscripten --release
+      - name: Test with Emscripten backend (release)
+        run: LITHIUM_BACKEND=emscripten cross test --target wasm32-unknown-emscripten --release
 
   darwin:
     runs-on: ${{ matrix.os }}

@@ -20,9 +20,10 @@ fn main() {
     println!("cargo::rerun-if-env-changed=LITHIUM_BACKEND");
     if let Ok(backend) = std::env::var("LITHIUM_BACKEND") {
         println!("cargo::rustc-cfg=backend=\"{backend}\"");
+    } else if cfg("target_os") == "emscripten" {
+        println!("cargo::rustc-cfg=backend=\"emscripten\"");
     } else if version_meta().unwrap().channel == Channel::Nightly
         && (has_cfg("unix") || (has_cfg("windows") && cfg("target_env") == "gnu"))
-        && cfg("target_os") != "emscripten"
     {
         println!("cargo::rustc-cfg=backend=\"itanium\"");
     } else if version_meta().unwrap().channel == Channel::Nightly

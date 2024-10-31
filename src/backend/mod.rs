@@ -173,6 +173,10 @@ mod imp;
 #[path = "panic.rs"]
 mod imp;
 
+#[cfg(backend = "emscripten")]
+#[path = "emscripten.rs"]
+mod imp;
+
 #[cfg(backend = "unimplemented")]
 #[path = "unimplemented.rs"]
 mod imp;
