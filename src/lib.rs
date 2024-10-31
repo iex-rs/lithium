@@ -91,6 +91,10 @@
     feature(core_intrinsics)
 )]
 #![cfg_attr(backend = "seh", feature(fn_ptr_trait, std_internals))]
+#![cfg_attr(
+    all(backend = "itanium", target_arch = "wasm32"),
+    feature(wasm_exception_handling_intrinsics)
+)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
     clippy::cargo,

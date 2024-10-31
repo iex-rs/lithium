@@ -23,7 +23,9 @@ fn main() {
     } else if cfg("target_os") == "emscripten" {
         println!("cargo::rustc-cfg=backend=\"emscripten\"");
     } else if version_meta().unwrap().channel == Channel::Nightly
-        && (has_cfg("unix") || (has_cfg("windows") && cfg("target_env") == "gnu"))
+        && (has_cfg("unix")
+            || (has_cfg("windows") && cfg("target_env") == "gnu")
+            || cfg("target_arch") == "wasm32")
     {
         println!("cargo::rustc-cfg=backend=\"itanium\"");
     } else if version_meta().unwrap().channel == Channel::Nightly
