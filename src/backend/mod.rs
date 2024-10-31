@@ -270,8 +270,6 @@ mod test {
         assert!(destructor_was_run);
     }
 
-    // XXX: Upstream bug at https://github.com/rust-lang/rust/issues/132416
-    #[cfg(not(target_os = "wasi"))]
     #[test]
     fn nested_with_drop() {
         struct Dropper;
