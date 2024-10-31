@@ -66,7 +66,6 @@ jobs:
           - riscv64gc-unknown-linux-gnu
           - s390x-unknown-linux-gnu
           - sparc64-unknown-linux-gnu
-          - wasm32-unknown-emscripten
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,6 +85,21 @@ jobs:
         run: LITHIUM_BACKEND=itanium cross test --target ${{ matrix.target }} --release
       - name: Test without std (release)
         run: cross test --target ${{ matrix.target }} --release --no-default-features
+
+  emscripten:
+    runs-on: ubuntu-latest
+    if: success() || failure()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Install Cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+      - name: Test with panic backend (debug)
+        run: cross test --target wasm32-unknown-emscripten
+      - name: Test with panic backend (release)
+        run: cross test --target wasm32-unknown-emscripten --release
 
   darwin:
     runs-on: ${{ matrix.os }}
