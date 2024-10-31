@@ -5,6 +5,9 @@ const wasi = new WASI({
     version: process.argv[2],
     args: process.argv.slice(3),
     env: process.env,
+    preopens: {
+        "/": "."
+    },
 });
 
 const wasm = await WebAssembly.compile(await readFile(process.argv[3]));
