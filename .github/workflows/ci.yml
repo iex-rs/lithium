@@ -125,10 +125,14 @@ jobs:
         run: LITHIUM_BACKEND=panic ./cargo-wasi test --target wasm32-wasip1
       - name: Test with Itanium backend (debug)
         run: LITHIUM_BACKEND=itanium ./cargo-wasi test --target wasm32-wasip1
+      - name: Test without std (debug)
+        run: ./cargo-wasi test --target wasm32-wasip1 --no-default-features
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic ./cargo-wasi test --target wasm32-wasip1 --release
       - name: Test with Itanium backend (release)
         run: LITHIUM_BACKEND=itanium ./cargo-wasi test --target wasm32-wasip1 --release
+      - name: Test without std (release)
+        run: ./cargo-wasi test --target wasm32-wasip1 --release --no-default-features
 
   darwin:
     runs-on: ${{ matrix.os }}
