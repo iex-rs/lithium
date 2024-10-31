@@ -215,8 +215,10 @@ mod test {
             let _: Result<(), ()> = unsafe { catch(|| panic!("Hello, world!")) };
         }))
         .unwrap_err();
-
         assert!(destructor_was_run);
+
+        // Ensure that panic count is reset to 0
+        assert!(!std::thread::panicking());
     }
 
     #[test]
