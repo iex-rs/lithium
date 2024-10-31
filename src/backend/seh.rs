@@ -2,7 +2,7 @@
 // - https://github.com/rust-lang/rust/blob/master/library/panic_unwind/src/seh.rs
 // with inspiration from ReactOS and Wine sources.
 
-use super::{RethrowHandle, ThrowByValue};
+use super::{super::intrinsic::intercept, RethrowHandle, ThrowByValue};
 use core::marker::{FnPtr, PhantomData};
 use core::mem::ManuallyDrop;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -51,28 +51,7 @@ unsafe impl ThrowByValue for ActiveBackend {
 
     #[inline]
     unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, SehRethrowHandle)> {
-        union Data<Func, R, E> {
-            func: ManuallyDrop<Func>,
-            result: ManuallyDrop<R>,
-            cause: ManuallyDrop<E>,
-        }
-
-        #[inline]
-        fn do_call<Func: FnOnce() -> R, R, E>(data: *mut u8) {
-            // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer
-            // to the `data` variable.
-            let data: &mut Data<Func, R, E> = unsafe { &mut *data.cast() };
-            // SAFETY: This function is called at the start of the process, so the `func` field is
-            // still initialized.
-            let func = unsafe { ManuallyDrop::take(&mut data.func) };
-            data.result = ManuallyDrop::new(func());
-        }
-
-        #[inline]
-        fn do_catch<Func: FnOnce() -> R, R, E>(data: *mut u8, ex: *mut u8) {
-            // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer
-            // to the `data` variable.
-            let data: &mut Data<Func, R, E> = unsafe { &mut *data.cast() };
+        let catch = |ex: *mut u8| {
             let ex: *mut Exception<E> = ex.cast();
 
             // Rethrow foreign exceptions, as well as Rust panics.
@@ -86,6 +65,8 @@ unsafe impl ThrowByValue for ActiveBackend {
                 }
             }
 
+            // We catch the exception by reference, so the C++ runtime will drop it. Tell our
+            // destructor to calm down.
             // SAFETY: This is our exception, so `ex` points at a valid instance of `Exception<E>`.
             unsafe {
                 (*ex).header.caught = true;
@@ -93,31 +74,10 @@ unsafe impl ThrowByValue for ActiveBackend {
             // SAFETY: As above.
             let cause = unsafe { &mut (*ex).cause };
             // SAFETY: We only read the cause here, so no double copies.
-            data.cause = ManuallyDrop::new(unsafe { ManuallyDrop::take(cause) });
-        }
-
-        let mut data = Data {
-            func: ManuallyDrop::new(func),
+            (unsafe { ManuallyDrop::take(cause) }, SehRethrowHandle)
         };
 
-        // SAFETY: `do_catch` doesn't do anything that might unwind
-        if unsafe {
-            core::intrinsics::catch_unwind(
-                do_call::<Func, R, E>,
-                (&raw mut data).cast(),
-                do_catch::<Func, R, E>,
-            )
-        } == 0i32
-        {
-            // SAFETY: If zero was returned, no unwinding happened, so `do_call` must have finished
-            // till the assignment to `data.result`.
-            return Ok(ManuallyDrop::into_inner(unsafe { data.result }));
-        }
-
-        // SAFETY: If a non-zero value was returned, unwinding has happened, so `do_catch` was
-        // invoked, thus `data.ex` is initialized now.
-        let cause = ManuallyDrop::into_inner(unsafe { data.cause });
-        Err((cause, SehRethrowHandle))
+        unsafe { intercept(func, catch) }
     }
 }
 

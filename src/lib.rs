@@ -162,4 +162,7 @@ mod heterogeneous_stack;
 #[cfg(any(backend = "itanium", backend = "panic"))]
 mod stacked_exceptions;
 
+#[cfg(any(backend = "itanium", backend = "seh"))]
+mod intrinsic;
+
 pub use api::{catch, intercept, throw, InFlightException};

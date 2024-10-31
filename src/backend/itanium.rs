@@ -1,5 +1,5 @@
-use super::ThrowByPointer;
-use core::mem::{ManuallyDrop, MaybeUninit};
+use super::{super::intrinsic::intercept, ThrowByPointer};
+use core::mem::MaybeUninit;
 
 pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTLITH");
 
@@ -39,52 +39,11 @@ unsafe impl ThrowByPointer for ActiveBackend {
 
     #[inline]
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
-        union Data<Func, R> {
-            func: ManuallyDrop<Func>,
-            result: ManuallyDrop<R>,
-            ex: *mut u8,
-        }
-
-        #[inline]
-        fn do_call<Func: FnOnce() -> R, R>(data: *mut u8) {
-            // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer
-            // to the `data` variable.
-            let data: &mut Data<Func, R> = unsafe { &mut *data.cast() };
-            // SAFETY: This function is called at the start of the process, so the `func` field is
-            // still initialized.
-            let func = unsafe { ManuallyDrop::take(&mut data.func) };
-            data.result = ManuallyDrop::new(func());
-        }
-
-        #[inline]
-        fn do_catch<Func: FnOnce() -> R, R>(data: *mut u8, ex: *mut u8) {
-            // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer
-            // to the `data` variable.
-            let data: &mut Data<Func, R> = unsafe { &mut *data.cast() };
-            data.ex = ex;
-        }
-
-        let mut data = Data {
-            func: ManuallyDrop::new(func),
+        // SAFETY: The catch handler does not unwind.
+        let ex = match unsafe { intercept(func, |ex| ex) } {
+            Ok(value) => return Ok(value),
+            Err(ex) => ex,
         };
-
-        // SAFETY: `do_catch` doesn't do anything that might unwind
-        if unsafe {
-            core::intrinsics::catch_unwind(
-                do_call::<Func, R>,
-                (&raw mut data).cast(),
-                do_catch::<Func, R>,
-            )
-        } == 0i32
-        {
-            // SAFETY: If zero was returned, no unwinding happened, so `do_call` must have finished
-            // till the assignment to `data.result`.
-            return Ok(ManuallyDrop::into_inner(unsafe { data.result }));
-        }
-
-        // SAFETY: If a non-zero value was returned, unwinding has happened, so `do_catch` was
-        // invoked, thus `data.ex` is initialized now.
-        let ex = unsafe { data.ex };
 
         // SAFETY: `ex` is a pointer to an exception object as provided by the unwinder, so it must
         // be valid for reads. It's not explicitly documented that the class is not modified in
