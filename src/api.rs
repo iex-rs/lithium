@@ -186,6 +186,7 @@ pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFligh
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::panic::AssertUnwindSafe;
 
     #[test]
     fn catch_ok() {
@@ -200,9 +201,22 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
     fn catch_panic() {
-        let _: Result<(), ()> = unsafe { catch(|| panic!("Hello, world!")) };
+        struct Dropper<'a>(&'a mut bool);
+        impl Drop for Dropper<'_> {
+            fn drop(&mut self) {
+                *self.0 = true;
+            }
+        }
+
+        let mut destructor_was_run = false;
+        std::panic::catch_unwind(AssertUnwindSafe(|| {
+            let _dropper = Dropper(&mut destructor_was_run);
+            let _: Result<(), ()> = unsafe { catch(|| panic!("Hello, world!")) };
+        }))
+        .unwrap_err();
+
+        assert!(destructor_was_run);
     }
 
     #[test]
