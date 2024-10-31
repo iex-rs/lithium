@@ -237,7 +237,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        backend: [panic, itanium, seh]
+        backend: [panic, itanium, seh, emscripten]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
