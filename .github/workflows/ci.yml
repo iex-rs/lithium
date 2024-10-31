@@ -117,6 +117,8 @@ jobs:
           node-version: 18
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
+      - name: Add target
+        run: rustup target add wasm32-wasip1
       - name: Install rust-src
         run: rustup component add rust-src
       - name: Test with panic backend (debug)
