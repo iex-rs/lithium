@@ -149,6 +149,11 @@ const fn get_unwinder_private_word_count() -> usize {
     }
 }
 
+/// Destruct an exception when caught by a foreign runtime.
+///
+/// # Safety
+///
+/// `ex` must point at a valid exception object.
 unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
     #[cfg(feature = "std")]
     {

@@ -17,6 +17,10 @@ union Data<Func, Catch, T, E> {
 /// # Safety
 ///
 /// `catch` must not unwind.
+#[allow(
+    clippy::missing_errors_doc,
+    reason = "`Err` value is described immediately"
+)]
 #[inline]
 pub unsafe fn intercept<Func: FnOnce() -> T, Catch: FnOnce(*mut u8) -> E, T, E>(
     func: Func,

@@ -1,3 +1,8 @@
+/// Asserts that `n` is a multiple of `align_of::<AlignAs>()`.
+///
+/// # Panics
+///
+/// Panics if `n` is not a multiple of alignment.
 pub fn assert_aligned<AlignAs>(n: usize) {
     #[expect(
         clippy::arithmetic_side_effects,

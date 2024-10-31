@@ -291,6 +291,11 @@ fn abort_on_foreign_exception() -> ! {
 
 macro_rules! define_fns {
     ($abi:tt) => {
+        /// Destruct an exception object.
+        ///
+        /// # Safety
+        ///
+        /// `ex` must point at a valid exception object.
         unsafe extern $abi fn cleanup(ex: *mut ExceptionHeader) {
             // SAFETY: `ex` is a `this` pointer when called by the C++ runtime.
             if !unsafe { (*ex).caught } {
@@ -299,6 +304,12 @@ macro_rules! define_fns {
             }
         }
 
+        /// Copy an exception object.
+        ///
+        /// # Safety
+        ///
+        /// `from` must point at a valid exception object, while `to` must point at a suitable
+        /// allocation for the new object.
         unsafe extern $abi fn copy(_to: *mut ExceptionHeader, _from: *const ExceptionHeader) -> *mut ExceptionHeader {
             abort_on_caught_by_cxx();
         }
@@ -328,6 +339,11 @@ struct SmallPtr<P> {
 unsafe impl<P> Sync for SmallPtr<P> {}
 
 impl<P> SmallPtr<P> {
+    /// Construct a small pointer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `p` is too far from the image base.
     #[inline]
     fn from_erased(p: *const ()) -> Self {
         #[cfg(target_pointer_width = "32")]
@@ -437,6 +453,11 @@ fn throw_std_panic(payload: Box<dyn core::any::Any + Send + 'static>) -> ! {
 unsafe fn cxx_throw(exception_object: *mut ExceptionHeader, throw_info: *const ThrowInfo) -> ! {
     // This is a reimplementation of `_CxxThrowException`, with quite a few information hardcoded
     // and functions calls inlined.
+
+    #[expect(clippy::cast_possible_truncation, reason = "This is a constant")]
+    const N_PARAMETERS: u32 =
+        (core::mem::size_of::<ExceptionRecordParameters>() / core::mem::size_of::<usize>()) as u32;
+
     let mut parameters = ExceptionRecordParameters {
         magic: EH_MAGIC_NUMBER1,
         exception_object,
@@ -450,10 +471,7 @@ unsafe fn cxx_throw(exception_object: *mut ExceptionHeader, throw_info: *const T
         RaiseException(
             EH_EXCEPTION_NUMBER,
             EH_NONCONTINUABLE,
-            #[expect(clippy::arithmetic_side_effects, reason = "This is a constant")]
-            (core::mem::size_of::<ExceptionRecordParameters>() / core::mem::size_of::<usize>())
-                .try_into()
-                .unwrap(),
+            N_PARAMETERS,
             &raw mut parameters,
         );
     }

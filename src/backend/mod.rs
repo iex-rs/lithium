@@ -80,6 +80,10 @@ pub unsafe trait ThrowByPointer {
     ///
     /// This function returns `Ok` if the function returns normally, or `Err` if it throws (and the
     /// thrown exception is not caught by a nested interceptor).
+    #[allow(
+        clippy::missing_errors_doc,
+        reason = "`Err` value is described immediately"
+    )]
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Self::ExceptionHeader>;
 }
 
@@ -129,6 +133,10 @@ pub unsafe trait ThrowByValue {
     /// In particular, no exceptions may be thrown between the moment this function returns and the
     /// moment the handle is dropped (either by calling [`drop`] or by calling its
     /// [`RethrowHandle::rethrow`] method). Panics, however, are allowed, as are caught exceptions.
+    #[allow(
+        clippy::missing_errors_doc,
+        reason = "`Err` value is described immediately"
+    )]
     unsafe fn intercept<Func: FnOnce() -> R, R, E>(
         func: Func,
     ) -> Result<R, (E, Self::RethrowHandle<E>)>;

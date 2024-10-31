@@ -112,7 +112,7 @@ impl<E> Exception<E> {
 
     /// Restore pointer from pointer to header.
     ///
-    /// # Safery
+    /// # Safety
     ///
     /// `header` must have been produced by [`Exception::header`], and the corresponding object must
     /// be alive.
