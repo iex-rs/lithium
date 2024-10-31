@@ -1,19 +1,27 @@
-use super::Backend;
+use super::{RethrowHandle, ThrowByValue};
 
 pub(crate) struct ActiveBackend;
 
 compile_error!("Lithium does not support no_std in this configuration");
 
-unsafe impl Backend for ActiveBackend {
-    type ExceptionHeader = ();
+unsafe impl ThrowByValue for ActiveBackend {
+    type RethrowHandle<E> = UnimplementedRethrowHandle;
 
-    fn new_header() {}
-
-    unsafe fn throw(_ex: *mut ()) -> ! {
+    unsafe fn throw<E>(_cause: E) -> ! {
         unimplemented!()
     }
 
-    fn intercept<Func: FnOnce() -> R, R>(_func: Func) -> Result<R, *mut ()> {
+    unsafe fn intercept<Func: FnOnce() -> R, R, E>(
+        _func: Func,
+    ) -> Result<R, (E, Self::RethrowHandle<E>)> {
+        unimplemented!()
+    }
+}
+
+pub(crate) struct UnimplementedRethrowHandle;
+
+impl RethrowHandle for UnimplementedRethrowHandle {
+    unsafe fn rethrow<F>(self, _new_cause: F) -> ! {
         unimplemented!()
     }
 }

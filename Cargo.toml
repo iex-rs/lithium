@@ -36,7 +36,7 @@ harness = false
 
 [lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = ["cfg(nightly)", "cfg(backend, values(\"itanium\", \"seh\", \"panic\"))"]
+check-cfg = ["cfg(nightly)", "cfg(backend, values(\"itanium\", \"seh\", \"panic\", \"unimplemented\"))"]
 
 [profile.dev]
 panic = "unwind"

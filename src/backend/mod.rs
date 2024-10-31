@@ -169,11 +169,11 @@ mod imp;
 #[path = "seh.rs"]
 mod imp;
 
-#[cfg(all(backend = "panic", feature = "std"))]
+#[cfg(backend = "panic")]
 #[path = "panic.rs"]
 mod imp;
 
-#[cfg(all(backend = "panic", not(feature = "std")))]
+#[cfg(backend = "unimplemented")]
 #[path = "unimplemented.rs"]
 mod imp;
 

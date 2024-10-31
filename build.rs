@@ -31,6 +31,9 @@ fn main() {
     {
         println!("cargo::rustc-cfg=backend=\"seh\"");
     } else {
+        #[cfg(feature = "std")]
         println!("cargo::rustc-cfg=backend=\"panic\"");
+        #[cfg(not(feature = "std"))]
+        println!("cargo::rustc-cfg=backend=\"unimplemented\"");
     }
 }
