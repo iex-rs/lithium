@@ -193,6 +193,7 @@ mod test {
         assert_eq!(caught_ex, "Hello, world!");
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn intercept_panic() {
         let result = std::panic::catch_unwind(|| unsafe {

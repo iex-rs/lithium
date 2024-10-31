@@ -7,6 +7,9 @@ use core::marker::{FnPtr, PhantomData};
 use core::mem::ManuallyDrop;
 use core::sync::atomic::{AtomicU32, Ordering};
 
+#[cfg(feature = "std")]
+use core::panic::PanicPayload;
+
 pub(crate) struct ActiveBackend;
 
 /// SEH-based unwinding.
@@ -51,33 +54,66 @@ unsafe impl ThrowByValue for ActiveBackend {
 
     #[inline]
     unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, SehRethrowHandle)> {
-        let catch = |ex: *mut u8| {
-            let ex: *mut Exception<E> = ex.cast();
+        enum CaughtUnwind<E> {
+            LithiumException(E),
 
-            // Rethrow foreign exceptions, as well as Rust panics.
+            #[cfg(feature = "std")]
+            RustPanic(Box<dyn core::any::Any + Send + 'static>),
+        }
+
+        let catch = |ex: *mut u8| {
+            // This callback is not allowed to unwind, so we can't rethrow exceptions.
+            if ex.is_null() {
+                // This is a foreign exception. Abort from a separate function to prevent inlining.
+                abort_on_foreign_exception();
+            }
+
+            let ex_lithium: *mut Exception<E> = ex.cast();
+
             // SAFETY: If `ex` is non-null, it's a `rust_panic` exception, which can either be
             // thrown by us or by the Rust runtime; both have the `header.canary` field as the first
             // field in their structures.
-            if ex.is_null() || unsafe { (*ex).header.canary } != (&raw const THROW_INFO).cast() {
-                // SAFETY: Rethrowing is always valid.
-                unsafe {
-                    cxx_throw(core::ptr::null_mut(), core::ptr::null());
+            if unsafe { (*ex_lithium).header.canary } != (&raw const THROW_INFO).cast() {
+                // This is a Rust exception
+                #[cfg(feature = "std")]
+                {
+                    // We can't rethrow it immediately from this nounwind callback, so let's catch
+                    // it first.
+                    // SAFETY: `ex` is the callback value of `core::intrinsics::catch_unwind`.
+                    let payload = unsafe { __rust_panic_cleanup(ex) };
+                    // SAFETY: `__rust_panic_cleanup` returns a Box.
+                    let payload = unsafe { Box::from_raw(payload) };
+                    return CaughtUnwind::RustPanic(payload);
+                }
+                #[cfg(not(feature = "std"))]
+                {
+                    // In no-std mode, we can't handle this.
+                    core::intrinsics::abort();
                 }
             }
 
             // We catch the exception by reference, so the C++ runtime will drop it. Tell our
             // destructor to calm down.
-            // SAFETY: This is our exception, so `ex` points at a valid instance of `Exception<E>`.
+            // SAFETY: This is our exception, so `ex_lithium` points at a valid instance of
+            // `Exception<E>`.
             unsafe {
-                (*ex).header.caught = true;
+                (*ex_lithium).header.caught = true;
             }
             // SAFETY: As above.
-            let cause = unsafe { &mut (*ex).cause };
+            let cause = unsafe { &mut (*ex_lithium).cause };
             // SAFETY: We only read the cause here, so no double copies.
-            (unsafe { ManuallyDrop::take(cause) }, SehRethrowHandle)
+            CaughtUnwind::LithiumException(unsafe { ManuallyDrop::take(cause) })
         };
 
-        unsafe { intercept(func, catch) }
+        // SAFETY: `catch` doesn't unwind.
+        match unsafe { intercept(func, catch) } {
+            Ok(value) => Ok(value),
+
+            Err(CaughtUnwind::LithiumException(cause)) => Err((cause, SehRethrowHandle)),
+
+            #[cfg(feature = "std")]
+            Err(CaughtUnwind::RustPanic(payload)) => throw_std_panic(payload),
+        }
     }
 }
 
@@ -227,11 +263,25 @@ static THROW_INFO: ThrowInfo = ThrowInfo {
     catchable_type_array: SmallPtr::null(), // filled by throw
 };
 
-fn abort() -> ! {
+fn abort_on_caught_by_cxx() -> ! {
     #[cfg(feature = "std")]
     {
         eprintln!(
             "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.",
+        );
+        std::process::abort();
+    }
+    #[cfg(not(feature = "std"))]
+    core::intrinsics::abort();
+}
+
+#[cold]
+#[inline(never)]
+fn abort_on_foreign_exception() -> ! {
+    #[cfg(feature = "std")]
+    {
+        eprintln!(
+            "Lithium caught a foreign exception. This is unsupported. The process will now terminate.",
         );
         std::process::abort();
     }
@@ -245,12 +295,12 @@ macro_rules! define_fns {
             // SAFETY: `ex` is a `this` pointer when called by the C++ runtime.
             if !unsafe { (*ex).caught } {
                 // Caught by the cxx runtime
-                abort();
+                abort_on_caught_by_cxx();
             }
         }
 
         unsafe extern $abi fn copy(_to: *mut ExceptionHeader, _from: *const ExceptionHeader) -> *mut ExceptionHeader {
-            abort();
+            abort_on_caught_by_cxx();
         }
     };
 }
@@ -325,6 +375,56 @@ extern "system-unwind" {
         n_parameters: u32,
         paremeters: *mut ExceptionRecordParameters,
     ) -> !;
+}
+
+#[cfg(feature = "std")]
+extern "Rust" {
+    fn __rust_start_panic(payload: &mut dyn PanicPayload) -> u32;
+}
+
+#[cfg(feature = "std")]
+extern "C" {
+    #[expect(improper_ctypes, reason = "Copied from std")]
+    fn __rust_panic_cleanup(payload: *mut u8) -> *mut (dyn core::any::Any + Send + 'static);
+}
+
+#[cfg(feature = "std")]
+fn throw_std_panic(payload: Box<dyn core::any::Any + Send + 'static>) -> ! {
+    // We can't use resume_unwind here, as it increments the panic count, and we didn't decrement it
+    // upon catching the panic. Call `__rust_start_panic` directly instead.
+    use core::any::Any;
+
+    struct RewrapBox(Box<dyn Any + Send + 'static>);
+
+    // SAFETY: Copied straight from std.
+    unsafe impl PanicPayload for RewrapBox {
+        fn take_box(&mut self) -> *mut (dyn Any + Send) {
+            Box::into_raw(core::mem::replace(&mut self.0, Box::new(())))
+        }
+        fn get(&mut self) -> &(dyn Any + Send) {
+            &*self.0
+        }
+    }
+
+    impl core::fmt::Display for RewrapBox {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let payload = &self.0;
+            let payload = if let Some(&s) = payload.downcast_ref::<&'static str>() {
+                s
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.as_str()
+            } else {
+                "Box<dyn Any>"
+            };
+            f.write_str(payload)
+        }
+    }
+
+    // SAFETY: Copied straight from std.
+    unsafe {
+        __rust_start_panic(&mut RewrapBox(payload));
+    }
+    core::intrinsics::abort();
 }
 
 /// Throw a C++ exception.
