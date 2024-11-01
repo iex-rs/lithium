@@ -23,6 +23,8 @@
 //! lithium = "1"
 //! ```
 //!
+//! If you break either of these two requirements, cargo will scream at you.
+//!
 //!
 //! # Platform support
 //!
@@ -160,6 +162,9 @@
     unstable_name_collisions,
     reason = "XXX: remove when strict provenance is stabilized"
 )]
+
+#[cfg(panic = "abort")]
+compile_error!("Using Lithium with panic = \"abort\" is unsupported");
 
 extern crate alloc;
 
