@@ -36,6 +36,8 @@
 //! |Linux, macOS       |Itanium EH ABI|2.5x faster than panics                      |Yes             |
 //! |Windows (MSVC ABI) |SEH           |1.5x faster than panics                      |Yes             |
 //! |Windows (GNU ABI)  |Itanium EH ABI|2.5x faster than panics, but slower than MSVC|No              |
+//! |Emscripten         |C++ exceptions|2x faster than panics                        |Yes             |
+//! |WASI               |Itanium EH ABI|2.5x faster than panics                      |Yes             |
 //!
 //! Lithium strives to support all targets that Rust panics support. If Lithium does not work
 //! correctly on such a target, please open an issue.
