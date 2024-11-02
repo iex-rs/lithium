@@ -21,7 +21,7 @@ use super::backend::{ActiveBackend, RethrowHandle, ThrowByValue};
 /// # Example
 ///
 /// ```should_panic
-/// use lithium::*;
+/// use lithium::throw;
 ///
 /// unsafe {
 ///     throw::<&'static str>("Oops!");
@@ -54,7 +54,7 @@ pub unsafe fn throw<E>(cause: E) -> ! {
 /// # Example
 ///
 /// ```rust
-/// use lithium::*;
+/// use lithium::{catch, throw};
 ///
 /// // SAFETY: the exception type matches
 /// let res = unsafe {
@@ -138,7 +138,7 @@ impl<E> InFlightException<E> {
 /// Caught exceptions are not subject to this requirement, i.e. the following pattern is safe:
 ///
 /// ```rust
-/// use lithium::*;
+/// use lithium::{intercept, throw};
 ///
 /// unsafe {
 ///     let result = intercept::<(), i32>(|| throw::<i32>(1));
@@ -151,7 +151,7 @@ impl<E> InFlightException<E> {
 ///
 /// ```rust
 /// use anyhow::{anyhow, Error, Context};
-/// use lithium::*;
+/// use lithium::{catch, intercept, throw};
 ///
 /// /// Throws [`Error`].
 /// unsafe fn f() {

@@ -58,7 +58,7 @@
 //! [`catch`]/[`intercept`] callback. For example, this is sound:
 //!
 //! ```rust
-//! use lithium::*;
+//! use lithium::{catch, throw};
 //!
 //! struct A;
 //! struct B;
