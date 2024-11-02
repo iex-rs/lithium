@@ -1,7 +1,7 @@
 use super::{super::intrinsic::intercept, ThrowByPointer};
 use core::mem::MaybeUninit;
 
-pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTLITH");
+pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTIEX\0");
 
 pub(crate) struct ActiveBackend;
 
