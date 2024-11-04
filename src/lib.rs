@@ -1,7 +1,7 @@
 //! Lightweight exceptions.
 //!
 //! Lithium provides a custom exception mechanism as an alternative to Rust panics. Compared to Rust
-//! panics, this mechanism is allocation-free, avoids indirections and RTTI, and hence faster, if
+//! panics, this mechanism is allocation-free, avoids indirections and RTTI, and is hence faster, if
 //! less applicable.
 //!
 //! On nightly, Lithium is more than 2x faster than Rust panics on common `Result`-like usecases.
@@ -53,7 +53,7 @@
 //! match exactly. Note that the functions are generic, and if the type is inferred wrong, UB will
 //! happen. Use turbofish to avoid this pitfall.
 //!
-//! The matching types requirement only apply to exceptions that aren't caught inside the
+//! The matching types requirement only applies to exceptions that aren't caught inside the
 //! [`catch`]/[`intercept`] callback. For example, this is sound:
 //!
 //! ```rust
@@ -70,7 +70,7 @@
 //! }
 //! ```
 //!
-//! The responsibility of holding this safety requirement is split between the throwing and the
+//! The responsibility of upholding this safety requirement is split between the throwing and the
 //! catching functions. All throwing functions must be `unsafe`, listing "only caught by type `E`"
 //! as a safety requirement. All catching functions that take a user-supplied callback must be
 //! `unsafe` too, listing "callback only throws type `E`" as a safety requirement.
