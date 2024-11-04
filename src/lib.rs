@@ -4,7 +4,7 @@
 //! panics, this mechanism is allocation-free, avoids indirections and RTTI, and hence faster, if
 //! less applicable.
 //!
-//! Under the default configuration, Lithium is more than 2x faster Rust panics on common
+//! Under the default configuration, Lithium is more than 2x faster than Rust panics on common
 //! `Result`-like usecases. See the
 //! [benchmark](https://github.com/iex-rs/lithium/blob/master/benches/bench.rs).
 //!
