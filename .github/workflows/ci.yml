@@ -122,18 +122,18 @@ jobs:
       - name: Install rust-src
         run: rustup component add rust-src
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic ./cargo-wasi test --target wasm32-wasip1
+        run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target wasm32-wasip1
       - name: Test with Itanium backend (debug)
-        run: LITHIUM_BACKEND=itanium ./cargo-wasi test --target wasm32-wasip1
+        run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target wasm32-wasip1
       - name: Test without std (debug)
-        run: ./cargo-wasi test --target wasm32-wasip1 --no-default-features
+        run: ci/cargo-wasi test --target wasm32-wasip1 --no-default-features
       # XXX: Upstream bug at https://github.com/rust-lang/rust/issues/132416
       # - name: Test with panic backend (release)
-      #   run: LITHIUM_BACKEND=panic ./cargo-wasi test --target wasm32-wasip1 --release
+      #   run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target wasm32-wasip1 --release
       # - name: Test with Itanium backend (release)
-      #   run: LITHIUM_BACKEND=itanium ./cargo-wasi test --target wasm32-wasip1 --release
+      #   run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target wasm32-wasip1 --release
       # - name: Test without std (release)
-      #   run: ./cargo-wasi test --target wasm32-wasip1 --release --no-default-features
+      #   run: ci/cargo-wasi test --target wasm32-wasip1 --release --no-default-features
 
   darwin:
     runs-on: ${{ matrix.os }}
