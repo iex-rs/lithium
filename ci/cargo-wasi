@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+export RUSTFLAGS="$RUSTFLAGS -C panic=unwind"
+export CARGO_TARGET_WASM32_WASIP1_RUNNER="$(printf "node --no-warnings %q preview1" "$(dirname "$0")/wasi.mjs")"
+export CARGO_TARGET_WASM32_WASIP2_RUNNER="$(printf "node --no-warnings %q preview2" "$(dirname "$0")/wasi.mjs")"
+exec cargo -Z build-std=core,std "$@"
