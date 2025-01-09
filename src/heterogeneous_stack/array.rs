@@ -2,12 +2,6 @@ use super::align::assert_aligned;
 use core::cell::{Cell, UnsafeCell};
 use core::mem::MaybeUninit;
 
-#[allow(
-    unused_imports,
-    reason = "XXX: remove when strict provenance is stabilized"
-)]
-use sptr::Strict;
-
 /// A thread-unsafe array-backed stack allocator.
 ///
 /// This allocator can allocate values with sizes that are multiples of `align_of::<AlignAs>()`,
@@ -55,9 +49,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
         if n == 0 {
             // Dangling pointers to ZSTs are always valid and unique. Creating `*mut AlignAs`
             // instead of *mut u8` forces alignment.
-            // XXX: Replace with `return Some(core::ptr::dangling_mut::<AlignAs>().cast());` when
-            // strict provenance is stabilized
-            return Some(align_of::<AlignAs>() as *mut u8);
+            return Some(core::ptr::dangling_mut::<AlignAs>().cast());
         }
 
         // SAFETY: len <= CAPACITY is an invariant

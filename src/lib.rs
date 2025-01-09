@@ -157,10 +157,6 @@
     clippy::inline_always,
     reason = "I'm not an idiot, this is a result of benchmarking/profiling"
 )]
-#![allow(
-    unstable_name_collisions,
-    reason = "XXX: remove when strict provenance is stabilized"
-)]
 
 #[cfg(panic = "abort")]
 compile_error!("Using Lithium with panic = \"abort\" is unsupported");

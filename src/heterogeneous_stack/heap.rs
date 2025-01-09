@@ -3,12 +3,6 @@ use alloc::alloc;
 use core::alloc::Layout;
 use core::marker::PhantomData;
 
-#[allow(
-    unused_imports,
-    reason = "XXX: remove when strict provenance is stabilized"
-)]
-use sptr::Strict;
-
 /// A heap-backed allocator.
 ///
 /// This allocator can allocate values with sizes that are multiples of `align_of::<AlignAs>()`,
