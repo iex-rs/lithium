@@ -233,12 +233,16 @@ jobs:
 
   valgrind:
     runs-on: ubuntu-latest
+    env:
+      RUSTC_BOOTSTRAP: '1'
     if: success() || failure()
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      # XXX: nightly currently suffers from a leak, so pin to beta
+      # https://github.com/rust-lang/rust/issues/135608
       - name: Install Rust
-        run: rustup update nightly && rustup default nightly
+        run: rustup update beta && rustup default beta
       - name: Install cargo valgrind
         run: sudo apt-get update && sudo apt-get install valgrind && cargo install cargo-valgrind
       - name: Test with panic backend (debug)

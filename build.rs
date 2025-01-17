@@ -17,21 +17,23 @@ fn main() {
         println!("cargo::rustc-cfg=feature=\"sound-under-stacked-borrows\"");
     }
 
+    // RUSTC_BOOTSTRAP is just for testing. Promise.
+    // XXX: https://github.com/rust-lang/rust/issues/135608
+    let has_features = version_meta().unwrap().channel == Channel::Nightly
+        || std::env::var("RUSTC_BOOTSTRAP").is_ok_and(|bootstrap| bootstrap == "1");
+
     println!("cargo::rerun-if-env-changed=LITHIUM_BACKEND");
     if let Ok(backend) = std::env::var("LITHIUM_BACKEND") {
         println!("cargo::rustc-cfg=backend=\"{backend}\"");
     } else if cfg("target_os") == "emscripten" {
         println!("cargo::rustc-cfg=backend=\"emscripten\"");
-    } else if version_meta().unwrap().channel == Channel::Nightly
+    } else if has_features
         && (has_cfg("unix")
             || (has_cfg("windows") && cfg("target_env") == "gnu")
             || cfg("target_arch") == "wasm32")
     {
         println!("cargo::rustc-cfg=backend=\"itanium\"");
-    } else if version_meta().unwrap().channel == Channel::Nightly
-        && (has_cfg("windows") && cfg("target_env") == "msvc")
-        && !is_miri
-    {
+    } else if has_features && (has_cfg("windows") && cfg("target_env") == "msvc") && !is_miri {
         println!("cargo::rustc-cfg=backend=\"seh\"");
     } else {
         #[cfg(feature = "std")]
