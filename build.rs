@@ -25,7 +25,7 @@ fn main() {
     println!("cargo::rerun-if-env-changed=LITHIUM_BACKEND");
     if let Ok(backend) = std::env::var("LITHIUM_BACKEND") {
         println!("cargo::rustc-cfg=backend=\"{backend}\"");
-    } else if cfg("target_os") == "emscripten" {
+    } else if has_features && cfg("target_os") == "emscripten" {
         println!("cargo::rustc-cfg=backend=\"emscripten\"");
     } else if has_features
         && (has_cfg("unix")
