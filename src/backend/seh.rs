@@ -163,14 +163,14 @@ struct Exception<E> {
 
 #[cfg(target_arch = "x86")]
 macro_rules! thiscall {
-    ($($tt:tt)*) => {
-        unsafe extern "thiscall" $($tt)*
+    ($(#[$outer:meta])* fn $($tt:tt)*) => {
+        $(#[$outer])* unsafe extern "thiscall" fn $($tt)*
     };
 }
 #[cfg(not(target_arch = "x86"))]
 macro_rules! thiscall {
-    ($($tt:tt)*) => {
-        unsafe extern "C" $($tt)*
+    ($(#[$outer:meta])* fn $($tt:tt)*) => {
+        $(#[$outer])* unsafe extern "C" fn $($tt)*
     };
 }
 
@@ -289,37 +289,32 @@ fn abort_on_foreign_exception() -> ! {
     core::intrinsics::abort();
 }
 
-macro_rules! define_fns {
-    ($abi:tt) => {
-        /// Destruct an exception object.
-        ///
-        /// # Safety
-        ///
-        /// `ex` must point at a valid exception object.
-        unsafe extern $abi fn cleanup(ex: *mut ExceptionHeader) {
-            // SAFETY: `ex` is a `this` pointer when called by the C++ runtime.
-            if !unsafe { (*ex).caught } {
-                // Caught by the cxx runtime
-                abort_on_caught_by_cxx();
-            }
-        }
-
-        /// Copy an exception object.
-        ///
-        /// # Safety
-        ///
-        /// `from` must point at a valid exception object, while `to` must point at a suitable
-        /// allocation for the new object.
-        unsafe extern $abi fn copy(_to: *mut ExceptionHeader, _from: *const ExceptionHeader) -> *mut ExceptionHeader {
+thiscall! {
+    /// Destruct an exception object.
+    ///
+    /// # Safety
+    ///
+    /// `ex` must point at a valid exception object.
+    fn cleanup(ex: *mut ExceptionHeader) {
+        // SAFETY: `ex` is a `this` pointer when called by the C++ runtime.
+        if !unsafe { (*ex).caught } {
+            // Caught by the cxx runtime
             abort_on_caught_by_cxx();
         }
-    };
+    }
 }
 
-#[cfg(target_arch = "x86")]
-define_fns!("thiscall");
-#[cfg(not(target_arch = "x86"))]
-define_fns!("C");
+thiscall! {
+    /// Copy an exception object.
+    ///
+    /// # Safety
+    ///
+    /// `from` must point at a valid exception object, while `to` must point at a suitable
+    /// allocation for the new object.
+    fn copy(_to: *mut ExceptionHeader, _from: *const ExceptionHeader) -> *mut ExceptionHeader {
+        abort_on_caught_by_cxx();
+    }
+}
 
 extern "C" {
     #[cfg(target_pointer_width = "64")]
