@@ -88,7 +88,7 @@ pub struct Exception<E> {
     cause: ManuallyDrop<Unaligned<E>>,
 }
 
-#[repr(packed)]
+#[repr(C, packed)]
 struct Unaligned<T>(T);
 
 impl<E> Exception<E> {
