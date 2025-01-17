@@ -18,6 +18,7 @@ unsafe impl ThrowByValue for ActiveBackend {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct UnimplementedRethrowHandle;
 
 impl RethrowHandle for UnimplementedRethrowHandle {
