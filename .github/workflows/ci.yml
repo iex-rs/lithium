@@ -6,6 +6,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # XXX: https://github.com/actions/partner-runner-images/issues/27
+  XDG_CONFIG_HOME: ~/.config
 
 jobs:
   linux-native:
@@ -18,11 +20,14 @@ jobs:
         include:
           - os: ubuntu-latest
             arch: x86_64
-          - os: buildjet-2vcpu-ubuntu-2204-arm
+          - os: ubuntu-24.04-arm
             arch: aarch64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install Rustup
+        if: matrix.arch == 'aarch64'
+        run: curl https://sh.rustup.rs -sSf | sh -s -- -y && echo "$HOME/.cargo/bin" >>"$GITHUB_PATH"
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Add target
