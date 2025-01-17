@@ -1,4 +1,5 @@
 use super::ThrowByPointer;
+use alloc::boxed::Box;
 use core::panic::AssertUnwindSafe;
 use std::panic::{catch_unwind, resume_unwind};
 

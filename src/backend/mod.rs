@@ -186,6 +186,7 @@ pub(crate) use imp::ActiveBackend;
 #[cfg(test)]
 mod test {
     use super::{ActiveBackend, RethrowHandle, ThrowByValue};
+    use alloc::string::String;
 
     #[test]
     fn intercept_ok() {
@@ -210,7 +211,7 @@ mod test {
     fn intercept_panic() {
         let result = std::panic::catch_unwind(|| unsafe {
             ActiveBackend::intercept::<_, _, ()>(|| {
-                std::panic::resume_unwind(Box::new("Hello, world!"))
+                std::panic::resume_unwind(alloc::boxed::Box::new("Hello, world!"))
             })
         });
         assert_eq!(

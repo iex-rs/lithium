@@ -134,7 +134,7 @@ impl<E> Exception<E> {
 }
 
 #[cfg(feature = "std")]
-thread_local! {
+std::thread_local! {
     /// Thread-local exception stack.
     static STACK: Stack<Header> = const { Stack::new() };
 }
@@ -232,6 +232,7 @@ pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Except
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloc::string::String;
 
     #[test]
     fn exception_cause() {

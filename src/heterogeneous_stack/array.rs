@@ -132,6 +132,7 @@ impl<AlignAs, const CAPACITY: usize> Stack<AlignAs, CAPACITY> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloc::boxed::Box;
 
     #[test]
     #[should_panic]

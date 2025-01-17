@@ -186,6 +186,7 @@ pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFligh
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloc::string::String;
 
     #[test]
     fn catch_ok() {

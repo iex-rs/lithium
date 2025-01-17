@@ -80,7 +80,7 @@
 //! used by the crate match, all safe user-supplied callbacks are sound to call, because safe
 //! callbacks can only interact with exceptions in an isolated manner.
 
-#![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![no_std]
 #![cfg_attr(
     all(not(feature = "std"), not(backend = "unimplemented")),
     feature(thread_local)
@@ -164,6 +164,9 @@
 #[cfg(panic = "abort")]
 compile_error!("Using Lithium with panic = \"abort\" is unsupported");
 
+#[cfg(any(feature = "std", test))]
+extern crate std;
+
 extern crate alloc;
 
 mod api;
@@ -188,7 +191,7 @@ pub use api::{catch, intercept, throw, InFlightException};
 fn abort(message: &str) -> ! {
     #[cfg(feature = "std")]
     {
-        eprintln!("{message}");
+        std::eprintln!("{message}");
         std::process::abort();
     }
     #[cfg(not(feature = "std"))]
