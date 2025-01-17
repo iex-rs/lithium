@@ -9,13 +9,13 @@ env:
 
 jobs:
   linux-native:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.machine.os }}
     if: success() || failure()
     strategy:
       fail-fast: false
       matrix:
         libc: [gnu, musl]
-        include:
+        machine:
           - os: ubuntu-latest
             arch: x86_64
           - os: ubuntu-24.04-arm
@@ -26,19 +26,19 @@ jobs:
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Add target
-        run: rustup target add ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
+        run: rustup target add ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }}
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
+        run: LITHIUM_BACKEND=panic cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }}
       - name: Test with Itanium backend (debug)
-        run: LITHIUM_BACKEND=itanium cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
+        run: LITHIUM_BACKEND=itanium cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }}
       - name: Test without std (debug)
-        run: cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }} --no-default-features
+        run: cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --no-default-features
       - name: Test with panic backend (release)
-        run: LITHIUM_BACKEND=panic cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }} --release
+        run: LITHIUM_BACKEND=panic cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --release
       - name: Test with Itanium backend (release)
-        run: LITHIUM_BACKEND=itanium cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }} --release
+        run: LITHIUM_BACKEND=itanium cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --release
       - name: Test without std (release)
-        run: cargo test --target ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }} --release --no-default-features
+        run: cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --release --no-default-features
 
   linux-cross:
     runs-on: ubuntu-latest
