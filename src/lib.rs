@@ -32,13 +32,14 @@
 //!
 //! On nightly Rust, Lithium uses a custom mechanism on the following targets:
 //!
-//! |Target             |Implementation|Performance                                  |
-//! |-------------------|--------------|---------------------------------------------|
-//! |Linux, macOS       |Itanium EH ABI|2.5x faster than panics                      |
-//! |Windows (MSVC ABI) |SEH           |1.5x faster than panics                      |
-//! |Windows (GNU ABI)  |Itanium EH ABI|2.5x faster than panics, but slower than MSVC|
-//! |Emscripten         |C++ exceptions|2x faster than panics                        |
-//! |WASI               |Itanium EH ABI|2.5x faster than panics                      |
+//! |Target             |Implementation |Performance                                  |
+//! |-------------------|---------------|---------------------------------------------|
+//! |Linux, macOS       |Itanium EH ABI |2.5x faster than panics                      |
+//! |Windows (MSVC ABI) |SEH            |1.5x faster than panics                      |
+//! |Windows (GNU ABI)  |Itanium EH ABI |2.5x faster than panics, but slower than MSVC|
+//! |Emscripten (old EH)|C++ exceptions |2x faster than panics                        |
+//! |Emscripten (new EH)|Wasm exceptions|2.5x faster than panics                      |
+//! |WASI               |Itanium EH ABI |2.5x faster than panics                      |
 //!
 //! Lithium strives to support all targets that Rust panics support. If Lithium does not work
 //! correctly on such a target, please [open an issue](https://github.com/iex-rs/lithium/issues/).

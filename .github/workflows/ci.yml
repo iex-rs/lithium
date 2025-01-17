@@ -107,12 +107,17 @@ jobs:
         run: cargo install cross --git https://github.com/cross-rs/cross
       - name: Test with panic backend (debug)
         run: LITHIUM_BACKEND=panic cross test --target $target
+      - name: Test with Itanium backend (debug)
+        run: RUSTFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target -Z build-std
       - name: Test with Emscripten backend (debug)
         run: LITHIUM_BACKEND=emscripten cross test --target $target
       - name: Test with std thread locals (debug)
         run: LITHIUM_THREAD_LOCAL=std cross test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cross test --target $target --release
+      # XXX: https://github.com/rust-lang/rust/issues/132416
+      # - name: Test with Itanium backend (release)
+      #   run: RUSTFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target --release -Z build-std
       - name: Test with Emscripten backend (release)
         run: LITHIUM_BACKEND=emscripten cross test --target $target --release
       - name: Test with std thread locals (release)
