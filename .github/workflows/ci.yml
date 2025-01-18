@@ -191,7 +191,6 @@ jobs:
         if: matrix.abi == 'gnu'
         run: set LITHIUM_BACKEND=itanium && cargo test
       - name: Test without std (debug)
-        if: matrix.abi == 'msvc'
         run: cargo test --no-default-features
       - name: Test with panic backend (release)
         run: set LITHIUM_BACKEND=panic && cargo test --release
@@ -202,7 +201,6 @@ jobs:
         if: matrix.abi == 'gnu'
         run: set LITHIUM_BACKEND=itanium && cargo test --release
       - name: Test without std (release)
-        if: matrix.abi == 'msvc'
         run: cargo test --release --no-default-features
 
   miri-linux:
