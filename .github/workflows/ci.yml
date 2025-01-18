@@ -11,6 +11,7 @@ env:
 
 jobs:
   linux-native:
+    timeout-minutes: 3
     runs-on: ${{ matrix.machine.os }}
     if: success() || failure()
     strategy:
@@ -46,6 +47,7 @@ jobs:
         run: cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --release --no-default-features
 
   linux-cross:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     if: success() || failure()
     strategy:
@@ -94,6 +96,7 @@ jobs:
         run: cross test --target ${{ matrix.target }} --release --no-default-features
 
   xwin-cross:
+    timeout-minutes: 10
     runs-on: ${{ matrix.machine.os }}
     if: success() || failure()
     strategy:
@@ -144,6 +147,7 @@ jobs:
         run: cargo xwin test --target ${{ matrix.machine.target }} --release --no-default-features
 
   emscripten:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     if: success() || failure()
     steps:
@@ -163,6 +167,7 @@ jobs:
         run: LITHIUM_BACKEND=emscripten cross test --target wasm32-unknown-emscripten --release
 
   wasi:
+    timeout-minutes: 3
     runs-on: ubuntu-latest
     if: success() || failure()
     steps:
@@ -193,6 +198,7 @@ jobs:
       #   run: ci/cargo-wasi test --target wasm32-wasip1 --release --no-default-features
 
   darwin:
+    timeout-minutes: 3
     runs-on: ${{ matrix.os }}
     if: success() || failure()
     strategy:
@@ -220,6 +226,7 @@ jobs:
         run: cargo test --release
 
   windows:
+    timeout-minutes: 5
     runs-on: windows-latest
     if: success() || failure()
     strategy:
@@ -256,6 +263,7 @@ jobs:
         run: cargo test --release --no-default-features
 
   miri-linux:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     if: success() || failure()
     strategy:
@@ -282,6 +290,7 @@ jobs:
         run: cargo miri test --target ${{ matrix.target }} --no-default-features
 
   valgrind:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     env:
       RUSTC_BOOTSTRAP: '1'
@@ -309,6 +318,7 @@ jobs:
         run: cargo valgrind test --release --no-default-features
 
   test-stable:
+    timeout-minutes: 3
     runs-on: ubuntu-latest
     if: success() || failure()
     steps:
@@ -322,6 +332,7 @@ jobs:
         run: cargo test --release
 
   lint:
+    timeout-minutes: 1
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
