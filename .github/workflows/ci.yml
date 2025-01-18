@@ -94,19 +94,27 @@ jobs:
         run: cross test --target ${{ matrix.target }} --release --no-default-features
 
   wine-cross:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.machine.os }}
     if: success() || failure()
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - aarch64-pc-windows-msvc
-          - i686-pc-windows-msvc
-          - thumbv7a-pc-windows-msvc
-          - x86_64-pc-windows-msvc
+        machine:
+          - os: ubuntu-latest
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-latest
+            arch: x86_64
+            target: i686-pc-windows-msvc
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            target: aarch64-pc-windows-msvc
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install Rustup
+        if: matrix.arch == 'aarch64'
+        run: curl https://sh.rustup.rs -sSf | sh -s -- -y && echo "$HOME/.cargo/bin" >>"$GITHUB_PATH"
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Configure Cross tool and prepare image
@@ -117,19 +125,19 @@ jobs:
           cd cross
           git submodule update --init --remote
           cargo install cross --path .
-          cargo build-docker-image ${{ matrix.target }}-cross --tag local
+          cargo build-docker-image ${{ matrix.machine.target }}-cross --tag local
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }}
+        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.machine.target }}
       - name: Test with SEH backend (debug)
-        run: LITHIUM_BACKEND=seh cross test --target ${{ matrix.target }}
+        run: LITHIUM_BACKEND=seh cross test --target ${{ matrix.machine.target }}
       - name: Test without std (debug)
-        run: cross test --target ${{ matrix.target }} --no-default-features
+        run: cross test --target ${{ matrix.machine.target }} --no-default-features
       - name: Test with panic backend (release)
-        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }} --release
+        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.machine.target }} --release
       - name: Test with SEH backend (release)
-        run: LITHIUM_BACKEND=seh cross test --target ${{ matrix.target }} --release
+        run: LITHIUM_BACKEND=seh cross test --target ${{ matrix.machine.target }} --release
       - name: Test without std (release)
-        run: cross test --target ${{ matrix.target }} --release --no-default-features
+        run: cross test --target ${{ matrix.machine.target }} --release --no-default-features
 
   emscripten:
     runs-on: ubuntu-latest
