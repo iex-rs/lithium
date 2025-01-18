@@ -60,6 +60,7 @@ jobs:
           - arm-unknown-linux-musleabi
           - arm-unknown-linux-musleabihf
           - armv7-unknown-linux-gnueabihf
+          - i686-pc-windows-gnu  # runs under wine, Itanium
           - i686-unknown-linux-gnu
           - i686-unknown-linux-musl
           - loongarch64-unknown-linux-gnu
@@ -71,6 +72,7 @@ jobs:
           - riscv64gc-unknown-linux-gnu
           - s390x-unknown-linux-gnu
           - sparc64-unknown-linux-gnu
+          - x86_64-pc-windows-gnu  # runs under wine, Itanium
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -90,6 +92,56 @@ jobs:
         run: LITHIUM_BACKEND=itanium cross test --target ${{ matrix.target }} --release
       - name: Test without std (release)
         run: cross test --target ${{ matrix.target }} --release --no-default-features
+
+  xwin-cross:
+    runs-on: ${{ matrix.machine.os }}
+    if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        machine:
+          - os: ubuntu-latest
+            xwin_arch: x86_64
+            arch: amd64
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-latest
+            xwin_arch: x86
+            arch: i386
+            target: i686-pc-windows-msvc
+          # XXX: Wine is hanging during initial startup on arm64???
+          # - os: ubuntu-24.04-arm
+          #   xwin_arch: aarch64
+          #   arch: arm64
+          #   target: aarch64-pc-windows-msvc
+    env:
+      XWIN_ARCH: ${{ matrix.machine.xwin_arch }}
+      WINEDEBUG: fixme+all,err+all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly && rustup target add ${{ matrix.machine.target }}
+      - name: Install cargo-xwin
+        run: cargo install --locked cargo-xwin
+      - name: Install wine
+        run: |
+          set -exuo pipefail
+          sudo dpkg --add-architecture ${{ matrix.machine.arch }}
+          sudo apt-get update
+          sudo apt install wine:${{ matrix.machine.arch }}
+          wineboot
+      - name: Test with panic backend (debug)
+        run: LITHIUM_BACKEND=panic cargo xwin test --target ${{ matrix.machine.target }}
+      - name: Test with SEH backend (debug)
+        run: LITHIUM_BACKEND=seh cargo xwin test --target ${{ matrix.machine.target }}
+      - name: Test without std (debug)
+        run: cargo xwin test --target ${{ matrix.machine.target }} --no-default-features
+      - name: Test with panic backend (release)
+        run: LITHIUM_BACKEND=panic cargo xwin test --target ${{ matrix.machine.target }} --release
+      - name: Test with SEH backend (release)
+        run: LITHIUM_BACKEND=seh cargo xwin test --target ${{ matrix.machine.target }} --release
+      - name: Test without std (release)
+        run: cargo xwin test --target ${{ matrix.machine.target }} --release --no-default-features
 
   emscripten:
     runs-on: ubuntu-latest
