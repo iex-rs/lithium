@@ -12,3 +12,16 @@ build-std = ["std"]
 
 [target.mipsel-unknown-linux-gnu]
 build-std = ["std"]
+
+[target.aarch64-pc-windows-msvc]
+image = "ghcr.io/cross-rs/aarch64-pc-windows-msvc-cross:local"
+
+[target.i686-pc-windows-msvc]
+image = "ghcr.io/cross-rs/i686-pc-windows-msvc-cross:local"
+
+[target.thumbv7a-pc-windows-msvc]
+build-std = ["std"]
+image = "ghcr.io/cross-rs/thumbv7a-pc-windows-msvc-cross:local"
+
+[target.x86_64-pc-windows-msvc]
+image = "ghcr.io/cross-rs/x86_64-pc-windows-msvc-cross:local"

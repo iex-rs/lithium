@@ -60,6 +60,7 @@ jobs:
           - arm-unknown-linux-musleabi
           - arm-unknown-linux-musleabihf
           - armv7-unknown-linux-gnueabihf
+          - i686-pc-windows-gnu  # wine
           - i686-unknown-linux-gnu
           - i686-unknown-linux-musl
           - loongarch64-unknown-linux-gnu
@@ -71,6 +72,7 @@ jobs:
           - riscv64gc-unknown-linux-gnu
           - s390x-unknown-linux-gnu
           - sparc64-unknown-linux-gnu
+          - x86_64-pc-windows-gnu  # wine
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,6 +90,44 @@ jobs:
         run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }} --release
       - name: Test with Itanium backend (release)
         run: LITHIUM_BACKEND=itanium cross test --target ${{ matrix.target }} --release
+      - name: Test without std (release)
+        run: cross test --target ${{ matrix.target }} --release --no-default-features
+
+  wine-cross:
+    runs-on: ubuntu-latest
+    if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-pc-windows-msvc
+          - i686-pc-windows-msvc
+          - thumbv7a-pc-windows-msvc
+          - x86_64-pc-windows-msvc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Configure Cross tool and prepare image
+        run: |
+          set -exuo pipefail
+
+          git clone https://github.com/cross-rs/cross
+          cd cross
+          git submodule update --init --remote
+          cargo install cross --path .
+          cargo build-docker-image ${{ matrix.target }}-cross --tag local
+      - name: Test with panic backend (debug)
+        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }}
+      - name: Test with SEH backend (debug)
+        run: LITHIUM_BACKEND=seh cross test --target ${{ matrix.target }}
+      - name: Test without std (debug)
+        run: cross test --target ${{ matrix.target }} --no-default-features
+      - name: Test with panic backend (release)
+        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }} --release
+      - name: Test with SEH backend (release)
+        run: LITHIUM_BACKEND=seh cross test --target ${{ matrix.target }} --release
       - name: Test without std (release)
         run: cross test --target ${{ matrix.target }} --release --no-default-features
 
