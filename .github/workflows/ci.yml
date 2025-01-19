@@ -178,24 +178,36 @@ jobs:
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Test with panic backend (debug)
-        run: set LITHIUM_BACKEND=panic && cargo test
+        env:
+          LITHIUM_BACKEND: panic
+        run: cargo test
       - name: Test with SEH backend (debug)
         if: matrix.abi == 'msvc'
-        run: set LITHIUM_BACKEND=seh && cargo test
+        env:
+          LITHIUM_BACKEND: seh
+        run: cargo test
       - name: Test with Itanium backend (debug)
         if: matrix.abi == 'gnu'
-        run: set LITHIUM_BACKEND=itanium && cargo test
+        env:
+          LITHIUM_BACKEND: itanium
+        run: cargo test
       - name: Test without std (debug)
         if: matrix.abi == 'msvc'
         run: cargo test --no-default-features
       - name: Test with panic backend (release)
-        run: set LITHIUM_BACKEND=panic && cargo test --release
+        env:
+          LITHIUM_BACKEND: panic
+        run: cargo test --release
       - name: Test with SEH backend (release)
         if: matrix.abi == 'msvc'
-        run: set LITHIUM_BACKEND=seh && cargo test --release
+        env:
+          LITHIUM_BACKEND: seh
+        run: cargo test --release
       - name: Test with Itanium backend (release)
         if: matrix.abi == 'gnu'
-        run: set LITHIUM_BACKEND=itanium && cargo test --release
+        env:
+          LITHIUM_BACKEND: itanium
+        run: cargo test --release
       - name: Test without std (release)
         if: matrix.abi == 'msvc'
         run: cargo test --release --no-default-features
