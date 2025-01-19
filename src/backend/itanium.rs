@@ -96,7 +96,7 @@ pub struct Header {
     private_rest: MaybeUninit<[*const (); get_unwinder_private_word_count() - 1]>,
 }
 
-// Copied gay from https://github.com/rust-lang/rust/blob/master/library/unwind/src/libunwind.rs
+// Data from https://github.com/rust-lang/rust/blob/master/library/unwind/src/libunwind.rs
 const fn get_unwinder_private_word_count() -> usize {
     // The Itanium EH ABI says the structure contains 2 private uint64_t words. Some architectures
     // decided this means "2 private native words". So on some 32-bit architectures this is two

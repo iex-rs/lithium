@@ -1,6 +1,6 @@
 // This is partially taken from
 // - https://github.com/rust-lang/rust/blob/master/library/panic_unwind/src/seh.rs
-// with inspiration from ReactOS and Wine sources.
+// with exception constants and the throwing interface retrieved from ReactOS and Wine sources.
 
 use super::{super::intrinsic::intercept, RethrowHandle, ThrowByValue};
 use core::marker::{FnPtr, PhantomData};
