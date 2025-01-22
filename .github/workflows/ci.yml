@@ -21,25 +21,27 @@ jobs:
             arch: x86_64
           - os: ubuntu-24.04-arm
             arch: aarch64
+    env:
+      target: ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Add target
-        run: rustup target add ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }}
+        run: rustup target add $target
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }}
+        run: LITHIUM_BACKEND=panic cargo test --target $target
       - name: Test with Itanium backend (debug)
-        run: LITHIUM_BACKEND=itanium cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }}
+        run: LITHIUM_BACKEND=itanium cargo test --target $target
       - name: Test without std (debug)
-        run: cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --no-default-features
+        run: cargo test --target $target --no-default-features
       - name: Test with panic backend (release)
-        run: LITHIUM_BACKEND=panic cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --release
+        run: LITHIUM_BACKEND=panic cargo test --target $target --release
       - name: Test with Itanium backend (release)
-        run: LITHIUM_BACKEND=itanium cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --release
+        run: LITHIUM_BACKEND=itanium cargo test --target $target --release
       - name: Test without std (release)
-        run: cargo test --target ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }} --release --no-default-features
+        run: cargo test --target $target --release --no-default-features
 
   linux-cross:
     timeout-minutes: 5
@@ -68,6 +70,8 @@ jobs:
           - riscv64gc-unknown-linux-gnu
           - s390x-unknown-linux-gnu
           - sparc64-unknown-linux-gnu
+    env:
+      target: ${{ matrix.target }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,22 +80,24 @@ jobs:
       - name: Install Cross
         run: cargo install cross --git https://github.com/cross-rs/cross
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }}
+        run: LITHIUM_BACKEND=panic cross test --target $target
       - name: Test with Itanium backend (debug)
-        run: LITHIUM_BACKEND=itanium cross test --target ${{ matrix.target }}
+        run: LITHIUM_BACKEND=itanium cross test --target $target
       - name: Test without std (debug)
-        run: cross test --target ${{ matrix.target }} --no-default-features
+        run: cross test --target $target --no-default-features
       - name: Test with panic backend (release)
-        run: LITHIUM_BACKEND=panic cross test --target ${{ matrix.target }} --release
+        run: LITHIUM_BACKEND=panic cross test --target $target --release
       - name: Test with Itanium backend (release)
-        run: LITHIUM_BACKEND=itanium cross test --target ${{ matrix.target }} --release
+        run: LITHIUM_BACKEND=itanium cross test --target $target --release
       - name: Test without std (release)
-        run: cross test --target ${{ matrix.target }} --release --no-default-features
+        run: cross test --target $target --release --no-default-features
 
   emscripten:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     if: success() || failure()
+    env:
+      target: wasm32-unknown-emscripten
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,18 +106,20 @@ jobs:
       - name: Install Cross
         run: cargo install cross --git https://github.com/cross-rs/cross
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic cross test --target wasm32-unknown-emscripten
+        run: LITHIUM_BACKEND=panic cross test --target $target
       - name: Test with Emscripten backend (debug)
-        run: LITHIUM_BACKEND=emscripten cross test --target wasm32-unknown-emscripten
+        run: LITHIUM_BACKEND=emscripten cross test --target $target
       - name: Test with panic backend (release)
-        run: LITHIUM_BACKEND=panic cross test --target wasm32-unknown-emscripten --release
+        run: LITHIUM_BACKEND=panic cross test --target $target --release
       - name: Test with Emscripten backend (release)
-        run: LITHIUM_BACKEND=emscripten cross test --target wasm32-unknown-emscripten --release
+        run: LITHIUM_BACKEND=emscripten cross test --target $target --release
 
   wasi:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     if: success() || failure()
+    env:
+      target: wasm32-wasip1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,22 +130,22 @@ jobs:
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Add target
-        run: rustup target add wasm32-wasip1
+        run: rustup target add $target
       - name: Install rust-src
         run: rustup component add rust-src
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target wasm32-wasip1
+        run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target $target
       - name: Test with Itanium backend (debug)
-        run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target wasm32-wasip1
+        run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target $target
       - name: Test without std (debug)
-        run: ci/cargo-wasi test --target wasm32-wasip1 --no-default-features
+        run: ci/cargo-wasi test --target $target --no-default-features
       - name: Test with panic backend (release)
-        run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target wasm32-wasip1 --release
+        run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target $target --release
       # XXX: Upstream bug at https://github.com/rust-lang/rust/issues/132416
       # - name: Test with Itanium backend (release)
-      #   run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target wasm32-wasip1 --release
+      #   run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target $target --release
       # - name: Test without std (release)
-      #   run: ci/cargo-wasi test --target wasm32-wasip1 --release --no-default-features
+      #   run: ci/cargo-wasi test --target $target --release --no-default-features
 
   darwin:
     timeout-minutes: 3
@@ -176,44 +184,37 @@ jobs:
       matrix:
         arch: [x86_64, i686]
         abi: [msvc, gnu]
+    env:
+      target: ${{ matrix.arch }}-pc-windows-${{ matrix.abi }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set default-host
-        run: rustup set default-host ${{ matrix.arch }}-pc-windows-${{ matrix.abi }}
+        run: rustup set default-host $target
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Test with panic backend (debug)
-        env:
-          LITHIUM_BACKEND: panic
-        run: cargo test
+        run: LITHIUM_BACKEND=panic cargo test
       - name: Test with SEH backend (debug)
         if: matrix.abi == 'msvc'
-        env:
-          LITHIUM_BACKEND: seh
-        run: cargo test
+        run: LITHIUM_BACKEND=seh cargo test
       - name: Test with Itanium backend (debug)
         if: matrix.abi == 'gnu'
-        env:
-          LITHIUM_BACKEND: itanium
-        run: cargo test
+        run: LITHIUM_BACKEND=itanium cargo test
       - name: Test without std (debug)
         if: matrix.abi == 'msvc'
         run: cargo test --no-default-features
       - name: Test with panic backend (release)
-        env:
-          LITHIUM_BACKEND: panic
-        run: cargo test --release
+        run: LITHIUM_BACKEND=panic cargo test --release
       - name: Test with SEH backend (release)
         if: matrix.abi == 'msvc'
-        env:
-          LITHIUM_BACKEND: seh
-        run: cargo test --release
+        run: LITHIUM_BACKEND=seh cargo test --release
       - name: Test with Itanium backend (release)
         if: matrix.abi == 'gnu'
-        env:
-          LITHIUM_BACKEND: itanium
-        run: cargo test --release
+        run: LITHIUM_BACKEND=itanium cargo test --release
       - name: Test without std (release)
         if: matrix.abi == 'msvc'
         run: cargo test --release --no-default-features
@@ -229,6 +230,8 @@ jobs:
           - x86_64-unknown-linux-gnu
           - i686-unknown-linux-gnu
           - powerpc64-unknown-linux-gnu
+    env:
+      target: ${{ matrix.target }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -237,13 +240,13 @@ jobs:
       - name: Install Miri
         run: rustup component add miri
       - name: Add target
-        run: rustup target add ${{ matrix.target }}
+        run: rustup target add $target
       - name: Test with panic backend
-        run: LITHIUM_BACKEND=panic cargo miri test --target ${{ matrix.target }}
+        run: LITHIUM_BACKEND=panic cargo miri test --target $target
       - name: Test with Itanium backend
-        run: LITHIUM_BACKEND=itanium cargo miri test --target ${{ matrix.target }}
+        run: LITHIUM_BACKEND=itanium cargo miri test --target $target
       - name: Test without std
-        run: cargo miri test --target ${{ matrix.target }} --no-default-features
+        run: cargo miri test --target $target --no-default-features
 
   valgrind:
     timeout-minutes: 5
@@ -292,6 +295,9 @@ jobs:
       fail-fast: false
       matrix:
         backend: [panic, itanium, seh, emscripten]
+        thread_local: [std, attribute]
+    env:
+      LITHIUM_BACKEND: ${{ matrix.backend }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -300,9 +306,9 @@ jobs:
       - name: Install rustfmt and clippy
         run: rustup component add rustfmt clippy
       - name: Rustfmt
-        run: LITHIUM_BACKEND=${{ matrix.backend }} cargo fmt -- --check
+        run: cargo fmt -- --check
       - name: Clippy
-        run: LITHIUM_BACKEND=${{ matrix.backend }} cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
       - name: Clippy without std
         if: matrix.backend != 'panic'
-        run: LITHIUM_BACKEND=${{ matrix.backend }} cargo clippy --no-default-features -- -D warnings
+        run: cargo clippy --no-default-features -- -D warnings
