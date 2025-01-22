@@ -2,7 +2,10 @@
 // - https://github.com/rust-lang/rust/blob/master/library/panic_unwind/src/seh.rs
 // with exception constants and the throwing interface retrieved from ReactOS and Wine sources.
 
-use super::{super::intrinsic::intercept, RethrowHandle, ThrowByValue};
+use super::{
+    super::{abort, intrinsic::intercept},
+    RethrowHandle, ThrowByValue,
+};
 use core::marker::{FnPtr, PhantomData};
 use core::mem::ManuallyDrop;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -67,8 +70,10 @@ unsafe impl ThrowByValue for ActiveBackend {
         let catch = |ex: *mut u8| {
             // This callback is not allowed to unwind, so we can't rethrow exceptions.
             if ex.is_null() {
-                // This is a foreign exception. Abort from a separate function to prevent inlining.
-                abort_on_foreign_exception();
+                // This is a foreign exception.
+                abort(
+                    "Lithium caught a foreign exception. This is unsupported. The process will now terminate.",
+                );
             }
 
             let ex_lithium: *mut Exception<E> = ex.cast();
@@ -267,29 +272,7 @@ static THROW_INFO: ThrowInfo = ThrowInfo {
 };
 
 fn abort_on_caught_by_cxx() -> ! {
-    #[cfg(feature = "std")]
-    {
-        eprintln!(
-            "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.",
-        );
-        std::process::abort();
-    }
-    #[cfg(not(feature = "std"))]
-    core::intrinsics::abort();
-}
-
-#[cold]
-#[inline(never)]
-fn abort_on_foreign_exception() -> ! {
-    #[cfg(feature = "std")]
-    {
-        eprintln!(
-            "Lithium caught a foreign exception. This is unsupported. The process will now terminate.",
-        );
-        std::process::abort();
-    }
-    #[cfg(not(feature = "std"))]
-    core::intrinsics::abort();
+    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.");
 }
 
 thiscall! {

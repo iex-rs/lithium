@@ -178,3 +178,22 @@ mod stacked_exceptions;
 mod intrinsic;
 
 pub use api::{catch, intercept, throw, InFlightException};
+
+/// Abort the process with a message.
+///
+/// If `std` is available, this also outputs a message to stderr before aborting.
+#[cfg(any(backend = "itanium", backend = "seh", backend = "emscripten"))]
+#[cold]
+#[inline(never)]
+fn abort(message: &str) -> ! {
+    #[cfg(feature = "std")]
+    {
+        eprintln!("{message}");
+        std::process::abort();
+    }
+    #[cfg(not(feature = "std"))]
+    {
+        let _ = message;
+        core::intrinsics::abort();
+    }
+}

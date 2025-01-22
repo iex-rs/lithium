@@ -1,4 +1,7 @@
-use super::{super::intrinsic::intercept, ThrowByPointer};
+use super::{
+    super::{abort, intrinsic::intercept},
+    ThrowByPointer,
+};
 use core::mem::MaybeUninit;
 
 pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTIEX\0");
@@ -154,15 +157,7 @@ const fn get_unwinder_private_word_count() -> usize {
 ///
 /// `ex` must point at a valid exception object.
 unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
-    #[cfg(feature = "std")]
-    {
-        eprintln!(
-            "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.",
-        );
-        std::process::abort();
-    }
-    #[cfg(not(feature = "std"))]
-    core::intrinsics::abort();
+    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.");
 }
 
 #[cfg(not(target_arch = "wasm32"))]

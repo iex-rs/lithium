@@ -1,7 +1,10 @@
 // This is partially taken from
 // - https://github.com/rust-lang/rust/blob/master/library/panic_unwind/src/emcc.rs
 
-use super::{super::intrinsic::intercept, ThrowByPointer};
+use super::{
+    super::{abort, intrinsic::intercept},
+    ThrowByPointer,
+};
 
 pub(crate) struct ActiveBackend;
 
@@ -140,13 +143,5 @@ extern "C-unwind" {
 ///
 /// `ex` must point at a valid exception object.
 unsafe extern "C" fn cleanup(_ex: *mut ()) -> *mut () {
-    #[cfg(feature = "std")]
-    {
-        eprintln!(
-            "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.",
-        );
-        std::process::abort();
-    }
-    #[cfg(not(feature = "std"))]
-    core::intrinsics::abort();
+    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.");
 }
