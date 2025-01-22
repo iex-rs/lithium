@@ -2,7 +2,7 @@ use super::{RethrowHandle, ThrowByValue};
 
 pub(crate) struct ActiveBackend;
 
-compile_error!("Lithium does not support no_std in this configuration");
+compile_error!("Lithium does not support builds without std on this platform");
 
 unsafe impl ThrowByValue for ActiveBackend {
     type RethrowHandle<E> = UnimplementedRethrowHandle;
