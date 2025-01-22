@@ -8,7 +8,10 @@ use core::mem::ManuallyDrop;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 #[cfg(feature = "std")]
-use core::panic::PanicPayload;
+use {
+    alloc::boxed::Box,
+    core::{any::Any, panic::PanicPayload},
+};
 
 pub(crate) struct ActiveBackend;
 
@@ -58,7 +61,7 @@ unsafe impl ThrowByValue for ActiveBackend {
             LithiumException(E),
 
             #[cfg(feature = "std")]
-            RustPanic(Box<dyn core::any::Any + Send + 'static>),
+            RustPanic(Box<dyn Any + Send + 'static>),
         }
 
         let catch = |ex: *mut u8| {
@@ -396,15 +399,13 @@ extern "Rust" {
 #[cfg(feature = "std")]
 extern "C" {
     #[expect(improper_ctypes, reason = "Copied from std")]
-    fn __rust_panic_cleanup(payload: *mut u8) -> *mut (dyn core::any::Any + Send + 'static);
+    fn __rust_panic_cleanup(payload: *mut u8) -> *mut (dyn Any + Send + 'static);
 }
 
 #[cfg(feature = "std")]
-fn throw_std_panic(payload: Box<dyn core::any::Any + Send + 'static>) -> ! {
+fn throw_std_panic(payload: Box<dyn Any + Send + 'static>) -> ! {
     // We can't use resume_unwind here, as it increments the panic count, and we didn't decrement it
     // upon catching the panic. Call `__rust_start_panic` directly instead.
-    use core::any::Any;
-
     struct RewrapBox(Box<dyn Any + Send + 'static>);
 
     // SAFETY: Copied straight from std.
@@ -418,16 +419,10 @@ fn throw_std_panic(payload: Box<dyn core::any::Any + Send + 'static>) -> ! {
     }
 
     impl core::fmt::Display for RewrapBox {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            let payload = &self.0;
-            let payload = if let Some(&s) = payload.downcast_ref::<&'static str>() {
-                s
-            } else if let Some(s) = payload.downcast_ref::<String>() {
-                s.as_str()
-            } else {
-                "Box<dyn Any>"
-            };
-            f.write_str(payload)
+        fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            // `__rust_start_panic` is not supposed to use the `Display` implementation in unwinding
+            // mode.
+            unreachable!()
         }
     }
 
