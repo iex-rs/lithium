@@ -228,6 +228,8 @@ jobs:
 
   valgrind:
     runs-on: ubuntu-latest
+    env:
+      VALGRINDFLAGS: --suppressions=valgrind.supp
     if: success() || failure()
     steps:
       - name: Checkout

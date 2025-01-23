@@ -1,0 +1,9 @@
+{
+   <std_thread_current>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   ...
+   fun:_ZN3std6thread6Thread3new*
+   fun:_ZN3std6thread7current12init_current*
+}
