@@ -187,8 +187,9 @@ jobs:
       fail-fast: false
       matrix:
         arch: [x86_64, i686]
-        abi: [msvc, gnu]
+        abi: [msvc, gnu, gnullvm]
     env:
+      host: ${{ matrix.arch }}-pc-windows-${{ matrix.abi == 'gnullvm' && 'gnu' || matrix.abi }}
       target: ${{ matrix.arch }}-pc-windows-${{ matrix.abi }}
     defaults:
       run:
@@ -197,31 +198,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set default-host
-        run: rustup set default-host $target
+        run: rustup set default-host $host
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
+      - name: Install and configure LLVM-MinGW
+        if: matrix.abi == 'gnullvm'
+        run: >
+          rustup target add $target &&
+          curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20250114/llvm-mingw-20250114-ucrt-x86_64.zip -o llvm-mingw.zip &&
+          7z x llvm-mingw.zip &&
+          echo "[target.${{ matrix.arch }}-pc-windows-gnullvm]" >~/.cargo/config.toml &&
+          echo "linker = '$(pwd -W)/llvm-mingw-20250114-ucrt-x86_64/bin/clang'" >>~/.cargo/config.toml &&
+          echo "rustflags = ['-C', 'target-feature=+crt-static'${{ matrix.arch == 'i686' && ', ''-C'', ''link-args=-m32''' || '' }}]" >>~/.cargo/config.toml
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic ci/cargo-save "Test with panic backend (debug)" test
+        run: LITHIUM_BACKEND=panic ci/cargo-save "Test with panic backend (debug)" test --target $target
       - name: Test with SEH backend (debug)
         if: matrix.abi == 'msvc'
-        run: LITHIUM_BACKEND=seh ci/cargo-save "Test with SEH backend (debug)" test
+        run: LITHIUM_BACKEND=seh ci/cargo-save "Test with SEH backend (debug)" test --target $target
       - name: Test with Itanium backend (debug)
-        if: matrix.abi == 'gnu'
-        run: LITHIUM_BACKEND=itanium ci/cargo-save "Test with Itanium backend (debug)" test
+        if: matrix.abi == 'gnu' || matrix.abi == 'gnullvm'
+        run: LITHIUM_BACKEND=itanium ci/cargo-save "Test with Itanium backend (debug)" test --target $target
       - name: Test with std thread locals (debug)
-        if: matrix.abi == 'msvc'
-        run: LITHIUM_THREAD_LOCAL=std ci/cargo-save "Test with std thread locals (debug)" test
+        if: matrix.abi == 'msvc' || matrix.abi == 'gnullvm'
+        run: LITHIUM_THREAD_LOCAL=std ci/cargo-save "Test with std thread locals (debug)" test --target $target
       - name: Test with panic backend (release)
-        run: LITHIUM_BACKEND=panic ci/cargo-save "Test with panic backend (release)" test --release
+        run: LITHIUM_BACKEND=panic ci/cargo-save "Test with panic backend (release)" test --target $target --release
       - name: Test with SEH backend (release)
         if: matrix.abi == 'msvc'
-        run: LITHIUM_BACKEND=seh ci/cargo-save "Test with SEH backend (release)" test --release
+        run: LITHIUM_BACKEND=seh ci/cargo-save "Test with SEH backend (release)" test --target $target --release
       - name: Test with Itanium backend (release)
-        if: matrix.abi == 'gnu'
-        run: LITHIUM_BACKEND=itanium ci/cargo-save "Test with Itanium backend (release)" test --release
+        if: matrix.abi == 'gnu' || matrix.abi == 'gnullvm'
+        run: LITHIUM_BACKEND=itanium ci/cargo-save "Test with Itanium backend (release)" test --target $target --release
       - name: Test with std thread locals (release)
-        if: matrix.abi == 'msvc'
-        run: LITHIUM_THREAD_LOCAL=std ci/cargo-save "Test with std thread locals (release)" test --release
+        if: matrix.abi == 'msvc' || matrix.abi == 'gnullvm'
+        run: LITHIUM_THREAD_LOCAL=std ci/cargo-save "Test with std thread locals (release)" test --target $target --release
       - name: Upload built tests for Wine
         uses: actions/upload-artifact@v4
         with:
@@ -243,6 +253,9 @@ jobs:
           - os: ubuntu-latest
             ubuntu_arch: i386
             rust_arch: i686
+        # XXX: We should eventually enable 'gnullvm', too. Itanium under gnullvm is currently broken
+        # because Wine does not currently align module thread locals correctly, and we rely on that.
+        # https://bugs.winehq.org/show_bug.cgi?id=57700
         abi: [msvc, gnu]
     env:
       WINEDEBUG: fixme+all,err+all  # :ferrisClueless:
