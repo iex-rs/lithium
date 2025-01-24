@@ -41,8 +41,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
 
     #[inline]
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
-        // SAFETY: The catch handler does not unwind.
-        let catch_data = match unsafe { intercept(func, |catch_data| catch_data) } {
+        let catch_data = match intercept(func, |catch_data| catch_data) {
             Ok(value) => return Ok(value),
             Err(catch_data) => catch_data,
         };

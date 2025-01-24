@@ -94,7 +94,7 @@
 )]
 #![cfg_attr(
     any(backend = "itanium", backend = "seh", backend = "emscripten"),
-    feature(core_intrinsics)
+    feature(core_intrinsics, rustc_attrs)
 )]
 #![cfg_attr(backend = "seh", feature(fn_ptr_trait, std_internals))]
 #![cfg_attr(

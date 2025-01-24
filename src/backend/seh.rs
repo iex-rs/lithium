@@ -113,8 +113,7 @@ unsafe impl ThrowByValue for ActiveBackend {
             CaughtUnwind::LithiumException(unsafe { ManuallyDrop::take(cause) })
         };
 
-        // SAFETY: `catch` doesn't unwind.
-        match unsafe { intercept(func, catch) } {
+        match intercept(func, catch) {
             Ok(value) => Ok(value),
 
             Err(CaughtUnwind::LithiumException(cause)) => Err((cause, SehRethrowHandle)),

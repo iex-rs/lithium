@@ -9,20 +9,17 @@ union Data<Func, Catch, T, E> {
 /// Catch unwinding from a function.
 ///
 /// Runs `func`. If `func` doesn't unwind, wraps its return value in `Ok` and returns. If `func`
-/// unwinds, runs `catch` inside the catch handler and wraps its return value in `Err`.
+/// unwinds, runs `catch` inside the catch handler and wraps its return value in `Err`. If `catch`
+/// unwinds, the process aborts.
 ///
 /// The argument to `catch` is target-dependent and matches the exception object as supplied by
 /// [`core::intrinsics::catch_unwind`]. See rustc sources for specifics.
-///
-/// # Safety
-///
-/// `catch` must not unwind.
 #[allow(
     clippy::missing_errors_doc,
     reason = "`Err` value is described immediately"
 )]
 #[inline]
-pub unsafe fn intercept<Func: FnOnce() -> T, Catch: FnOnce(*mut u8) -> E, T, E>(
+pub fn intercept<Func: FnOnce() -> T, Catch: FnOnce(*mut u8) -> E, T, E>(
     func: Func,
     catch: Catch,
 ) -> Result<T, E> {
@@ -30,7 +27,7 @@ pub unsafe fn intercept<Func: FnOnce() -> T, Catch: FnOnce(*mut u8) -> E, T, E>(
         init: (ManuallyDrop::new(func), ManuallyDrop::new(catch)),
     };
 
-    // SAFETY: `do_catch` doesn't do anything that might unwind
+    // SAFETY: `do_catch` is marked as `#[rustc_nounwind]`
     if unsafe {
         core::intrinsics::catch_unwind(
             do_call::<Func, Catch, T, E>,
@@ -63,6 +60,7 @@ fn do_call<Func: FnOnce() -> R, Catch: FnOnce(*mut u8) -> E, R, E>(data: *mut u8
 
 // This function should be unsafe, but isn't due to the definition of `catch_unwind`.
 #[inline]
+#[rustc_nounwind]
 fn do_catch<Func: FnOnce() -> R, Catch: FnOnce(*mut u8) -> E, R, E>(data: *mut u8, ex: *mut u8) {
     // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer to the
     // `data` variable.
