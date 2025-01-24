@@ -201,27 +201,69 @@ jobs:
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Test with panic backend (debug)
-        run: LITHIUM_BACKEND=panic cargo test
+        run: LITHIUM_BACKEND=panic ci/cargo-save "Test with panic backend (debug)" test
       - name: Test with SEH backend (debug)
         if: matrix.abi == 'msvc'
-        run: LITHIUM_BACKEND=seh cargo test
+        run: LITHIUM_BACKEND=seh ci/cargo-save "Test with SEH backend (debug)" test
       - name: Test with Itanium backend (debug)
         if: matrix.abi == 'gnu'
-        run: LITHIUM_BACKEND=itanium cargo test
+        run: LITHIUM_BACKEND=itanium ci/cargo-save "Test with Itanium backend (debug)" test
       - name: Test with std thread locals (debug)
         if: matrix.abi == 'msvc'
-        run: LITHIUM_THREAD_LOCAL=std cargo test
+        run: LITHIUM_THREAD_LOCAL=std ci/cargo-save "Test with std thread locals (debug)" test
       - name: Test with panic backend (release)
-        run: LITHIUM_BACKEND=panic cargo test --release
+        run: LITHIUM_BACKEND=panic ci/cargo-save "Test with panic backend (release)" test --release
       - name: Test with SEH backend (release)
         if: matrix.abi == 'msvc'
-        run: LITHIUM_BACKEND=seh cargo test --release
+        run: LITHIUM_BACKEND=seh ci/cargo-save "Test with SEH backend (release)" test --release
       - name: Test with Itanium backend (release)
         if: matrix.abi == 'gnu'
-        run: LITHIUM_BACKEND=itanium cargo test --release
+        run: LITHIUM_BACKEND=itanium ci/cargo-save "Test with Itanium backend (release)" test --release
       - name: Test with std thread locals (release)
         if: matrix.abi == 'msvc'
-        run: LITHIUM_THREAD_LOCAL=std cargo test --release
+        run: LITHIUM_THREAD_LOCAL=std ci/cargo-save "Test with std thread locals (release)" test --release
+      - name: Upload built tests for Wine
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ env.target }}
+          path: saved-jobs
+          retention-days: 1
+
+  wine:
+    timeout-minutes: 3
+    runs-on: ${{ matrix.machine.os }}
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix:
+        machine:
+          - os: ubuntu-latest
+            ubuntu_arch: amd64
+            rust_arch: x86_64
+          - os: ubuntu-latest
+            ubuntu_arch: i386
+            rust_arch: i686
+        abi: [msvc, gnu]
+    env:
+      WINEDEBUG: fixme+all,err+all  # :ferrisClueless:
+      target: ${{ matrix.machine.rust_arch }}-pc-windows-${{ matrix.abi }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install wine
+        run: |
+          set -exuo pipefail
+          sudo dpkg --add-architecture ${{ matrix.machine.ubuntu_arch }}
+          sudo apt-get update
+          sudo apt install wine:${{ matrix.machine.ubuntu_arch }}
+          wineboot
+      - name: Download built tests
+        uses: actions/download-artifact@v4
+        with:
+          name: tests-${{ env.target }}
+          path: saved-jobs
+      - name: Run tests
+        run: ci/run-saved-jobs
 
   miri-linux:
     timeout-minutes: 5

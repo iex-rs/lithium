@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+
+run() {
+    echo "::group::$1"
+    shift
+    wine "$@"
+    echo ::endgroup::
+}
+
+. saved-jobs/list

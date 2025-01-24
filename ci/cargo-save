@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -e
+
+if [[ "$1" == --run ]]; then
+    mkdir -p saved-jobs
+
+    description="$2"
+    path="$(mktemp -p saved-jobs)"
+    cp "$3" "$path"
+    chmod +x "$path"
+    shift 3
+
+    printf -v code "%q " run "$description" "$path" "$@"
+    echo "$code" >>saved-jobs/list
+    exec "$path" "$@"
+fi
+
+description="$1"
+shift
+# Explicitly specifying 'bash' is necessary for Windows
+exec cargo --config "target.'$target'.runner = ['bash', '$(dirname "$0")/cargo-save', '--run', '$description']" "$@"
