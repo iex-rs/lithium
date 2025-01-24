@@ -198,6 +198,7 @@ name = "lithium"
 version = "1.0.2"
 dependencies = [
  "anyhow",
+ "autocfg",
  "criterion",
  "replace_with",
  "rustc_version",

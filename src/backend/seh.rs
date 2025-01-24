@@ -6,15 +6,12 @@ use super::{
     super::{abort, intrinsic::intercept},
     RethrowHandle, ThrowByValue,
 };
+use alloc::boxed::Box;
+use core::any::Any;
 use core::marker::{FnPtr, PhantomData};
 use core::mem::ManuallyDrop;
+use core::panic::PanicPayload;
 use core::sync::atomic::{AtomicU32, Ordering};
-
-#[cfg(feature = "std")]
-use {
-    alloc::boxed::Box,
-    core::{any::Any, panic::PanicPayload},
-};
 
 pub(crate) struct ActiveBackend;
 
@@ -62,8 +59,6 @@ unsafe impl ThrowByValue for ActiveBackend {
     unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, SehRethrowHandle)> {
         enum CaughtUnwind<E> {
             LithiumException(E),
-
-            #[cfg(feature = "std")]
             RustPanic(Box<dyn Any + Send + 'static>),
         }
 
@@ -72,7 +67,7 @@ unsafe impl ThrowByValue for ActiveBackend {
             if ex.is_null() {
                 // This is a foreign exception.
                 abort(
-                    "Lithium caught a foreign exception. This is unsupported. The process will now terminate.",
+                    "Lithium caught a foreign exception. This is unsupported. The process will now terminate.\n",
                 );
             }
 
@@ -82,22 +77,13 @@ unsafe impl ThrowByValue for ActiveBackend {
             // thrown by us or by the Rust runtime; both have the `header.canary` field as the first
             // field in their structures.
             if unsafe { (*ex_lithium).header.canary } != (&raw const THROW_INFO).cast() {
-                // This is a Rust exception
-                #[cfg(feature = "std")]
-                {
-                    // We can't rethrow it immediately from this nounwind callback, so let's catch
-                    // it first.
-                    // SAFETY: `ex` is the callback value of `core::intrinsics::catch_unwind`.
-                    let payload = unsafe { __rust_panic_cleanup(ex) };
-                    // SAFETY: `__rust_panic_cleanup` returns a Box.
-                    let payload = unsafe { Box::from_raw(payload) };
-                    return CaughtUnwind::RustPanic(payload);
-                }
-                #[cfg(not(feature = "std"))]
-                {
-                    // In no-std mode, we can't handle this.
-                    core::intrinsics::abort();
-                }
+                // This is a Rust exception. We can't rethrow it immediately from this nounwind
+                // callback, so let's catch it first.
+                // SAFETY: `ex` is the callback value of `core::intrinsics::catch_unwind`.
+                let payload = unsafe { __rust_panic_cleanup(ex) };
+                // SAFETY: `__rust_panic_cleanup` returns a Box.
+                let payload = unsafe { Box::from_raw(payload) };
+                return CaughtUnwind::RustPanic(payload);
             }
 
             // We catch the exception by reference, so the C++ runtime will drop it. Tell our
@@ -115,10 +101,7 @@ unsafe impl ThrowByValue for ActiveBackend {
 
         match intercept(func, catch) {
             Ok(value) => Ok(value),
-
             Err(CaughtUnwind::LithiumException(cause)) => Err((cause, SehRethrowHandle)),
-
-            #[cfg(feature = "std")]
             Err(CaughtUnwind::RustPanic(payload)) => throw_std_panic(payload),
         }
     }
@@ -271,7 +254,7 @@ static THROW_INFO: ThrowInfo = ThrowInfo {
 };
 
 fn abort_on_caught_by_cxx() -> ! {
-    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.");
+    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.\n");
 }
 
 thiscall! {
@@ -373,18 +356,17 @@ extern "system-unwind" {
     ) -> !;
 }
 
-#[cfg(feature = "std")]
+// This is provided by the `panic_unwind` built-in crate, so it's always available if
+// panic = "unwind" holds
 extern "Rust" {
     fn __rust_start_panic(payload: &mut dyn PanicPayload) -> u32;
 }
 
-#[cfg(feature = "std")]
 extern "C" {
     #[expect(improper_ctypes, reason = "Copied from std")]
     fn __rust_panic_cleanup(payload: *mut u8) -> *mut (dyn Any + Send + 'static);
 }
 
-#[cfg(feature = "std")]
 fn throw_std_panic(payload: Box<dyn Any + Send + 'static>) -> ! {
     // We can't use resume_unwind here, as it increments the panic count, and we didn't decrement it
     // upon catching the panic. Call `__rust_start_panic` directly instead.

@@ -156,7 +156,7 @@ const fn get_unwinder_private_word_count() -> usize {
 ///
 /// `ex` must point at a valid exception object.
 unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
-    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.");
+    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.\n");
 }
 
 #[cfg(not(target_arch = "wasm32"))]

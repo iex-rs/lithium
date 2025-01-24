@@ -19,11 +19,10 @@ criterion = { version = "0.5", default-features = false, features = ["cargo_benc
 replace_with = "0.1.7"
 
 [build-dependencies]
+autocfg = "1.4.0"
 rustc_version = "0.4.1"
 
 [features]
-default = ["std"]
-std = []
 sound-under-stacked-borrows = []
 
 [package.metadata."docs.rs"]
@@ -35,7 +34,11 @@ harness = false
 
 [lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = ["cfg(nightly)", "cfg(backend, values(\"itanium\", \"seh\", \"emscripten\", \"panic\", \"unimplemented\"))"]
+check-cfg = [
+	"cfg(abort, values(\"std\", \"core\"))",
+	"cfg(backend, values(\"itanium\", \"seh\", \"emscripten\", \"panic\", \"unimplemented\"))",
+	"cfg(thread_local, values(\"std\", \"attribute\", \"unimplemented\"))",
+]
 
 [profile.dev]
 panic = "unwind"

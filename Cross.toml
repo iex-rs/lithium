@@ -1,5 +1,5 @@
 [build.env]
-passthrough = ["LITHIUM_BACKEND"]
+passthrough = ["LITHIUM_BACKEND", "LITHIUM_THREAD_LOCAL"]
 
 [target.mips-unknown-linux-gnu]
 build-std = ["std"]

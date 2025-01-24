@@ -34,14 +34,14 @@ jobs:
         run: LITHIUM_BACKEND=panic cargo test --target $target
       - name: Test with Itanium backend (debug)
         run: LITHIUM_BACKEND=itanium cargo test --target $target
-      - name: Test without std (debug)
-        run: cargo test --target $target --no-default-features
+      - name: Test with std thread locals (debug)
+        run: LITHIUM_THREAD_LOCAL=std cargo test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cargo test --target $target --release
       - name: Test with Itanium backend (release)
         run: LITHIUM_BACKEND=itanium cargo test --target $target --release
-      - name: Test without std (release)
-        run: cargo test --target $target --release --no-default-features
+      - name: Test with std thread locals (release)
+        run: LITHIUM_THREAD_LOCAL=std cargo test --target $target --release
 
   linux-cross:
     timeout-minutes: 5
@@ -83,14 +83,14 @@ jobs:
         run: LITHIUM_BACKEND=panic cross test --target $target
       - name: Test with Itanium backend (debug)
         run: LITHIUM_BACKEND=itanium cross test --target $target
-      - name: Test without std (debug)
-        run: cross test --target $target --no-default-features
+      - name: Test with std thread locals (debug)
+        run: LITHIUM_THREAD_LOCAL=std cross test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cross test --target $target --release
       - name: Test with Itanium backend (release)
         run: LITHIUM_BACKEND=itanium cross test --target $target --release
-      - name: Test without std (release)
-        run: cross test --target $target --release --no-default-features
+      - name: Test with std thread locals (release)
+        run: LITHIUM_THREAD_LOCAL=std cross test --target $target --release
 
   emscripten:
     timeout-minutes: 5
@@ -109,10 +109,14 @@ jobs:
         run: LITHIUM_BACKEND=panic cross test --target $target
       - name: Test with Emscripten backend (debug)
         run: LITHIUM_BACKEND=emscripten cross test --target $target
+      - name: Test with std thread locals (debug)
+        run: LITHIUM_THREAD_LOCAL=std cross test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cross test --target $target --release
       - name: Test with Emscripten backend (release)
         run: LITHIUM_BACKEND=emscripten cross test --target $target --release
+      - name: Test with std thread locals (release)
+        run: LITHIUM_THREAD_LOCAL=std cross test --target $target --release
 
   wasi:
     timeout-minutes: 3
@@ -137,15 +141,15 @@ jobs:
         run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target $target
       - name: Test with Itanium backend (debug)
         run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target $target
-      - name: Test without std (debug)
-        run: ci/cargo-wasi test --target $target --no-default-features
+      - name: Test with std thread locals (debug)
+        run: LITHIUM_THREAD_LOCAL=std ci/cargo-wasi test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target $target --release
       # XXX: Upstream bug at https://github.com/rust-lang/rust/issues/132416
       # - name: Test with Itanium backend (release)
       #   run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target $target --release
-      # - name: Test without std (release)
-      #   run: ci/cargo-wasi test --target $target --release --no-default-features
+      # - name: Test with std thread locals (release)
+      #   run: LITHIUM_THREAD_LOCAL=std ci/cargo-wasi test --target $target --release
 
   darwin:
     timeout-minutes: 3
@@ -166,14 +170,14 @@ jobs:
         run: LITHIUM_BACKEND=panic cargo test
       - name: Test with Itanium backend (debug)
         run: LITHIUM_BACKEND=itanium cargo test
-      - name: Test without std (debug)
-        run: cargo test
+      - name: Test with std thread locals (debug)
+        run: LITHIUM_THREAD_LOCAL=std cargo test
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cargo test --release
       - name: Test with Itanium backend (release)
         run: LITHIUM_BACKEND=itanium cargo test --release
-      - name: Test without std (release)
-        run: cargo test --release
+      - name: Test with std thread locals (release)
+        run: LITHIUM_THREAD_LOCAL=std cargo test --release
 
   windows:
     timeout-minutes: 5
@@ -204,9 +208,9 @@ jobs:
       - name: Test with Itanium backend (debug)
         if: matrix.abi == 'gnu'
         run: LITHIUM_BACKEND=itanium cargo test
-      - name: Test without std (debug)
+      - name: Test with std thread locals (debug)
         if: matrix.abi == 'msvc'
-        run: cargo test --no-default-features
+        run: LITHIUM_THREAD_LOCAL=std cargo test
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cargo test --release
       - name: Test with SEH backend (release)
@@ -215,9 +219,9 @@ jobs:
       - name: Test with Itanium backend (release)
         if: matrix.abi == 'gnu'
         run: LITHIUM_BACKEND=itanium cargo test --release
-      - name: Test without std (release)
+      - name: Test with std thread locals (release)
         if: matrix.abi == 'msvc'
-        run: cargo test --release --no-default-features
+        run: LITHIUM_THREAD_LOCAL=std cargo test --release
 
   miri-linux:
     timeout-minutes: 5
@@ -245,8 +249,8 @@ jobs:
         run: LITHIUM_BACKEND=panic cargo miri test --target $target
       - name: Test with Itanium backend
         run: LITHIUM_BACKEND=itanium cargo miri test --target $target
-      - name: Test without std
-        run: cargo miri test --target $target --no-default-features
+      - name: Test with std thread locals
+        run: LITHIUM_THREAD_LOCAL=std cargo miri test --target $target
 
   valgrind:
     timeout-minutes: 5
@@ -265,14 +269,14 @@ jobs:
         run: LITHIUM_BACKEND=panic cargo valgrind test
       - name: Test with Itanium backend (debug)
         run: LITHIUM_BACKEND=itanium cargo valgrind test
-      - name: Test without std (debug)
-        run: cargo valgrind test --no-default-features
+      - name: Test with std thread locals (debug)
+        run: LITHIUM_THREAD_LOCAL=std cargo valgrind test
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cargo valgrind test --release
       - name: Test with Itanium backend (release)
         run: LITHIUM_BACKEND=itanium cargo valgrind test --release
-      - name: Test without std (release)
-        run: cargo valgrind test --release --no-default-features
+      - name: Test with std thread locals (release)
+        run: LITHIUM_THREAD_LOCAL=std cargo valgrind test --release
 
   test-stable:
     timeout-minutes: 3
@@ -298,6 +302,7 @@ jobs:
         thread_local: [std, attribute]
     env:
       LITHIUM_BACKEND: ${{ matrix.backend }}
+      LITHIUM_THREAD_LOCAL: ${{ matrix.thread_local }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -309,6 +314,3 @@ jobs:
         run: cargo fmt -- --check
       - name: Clippy
         run: cargo clippy -- -D warnings
-      - name: Clippy without std
-        if: matrix.backend != 'panic'
-        run: cargo clippy --no-default-features -- -D warnings

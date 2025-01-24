@@ -32,19 +32,21 @@
 //!
 //! On nightly Rust, Lithium uses a custom mechanism on the following targets:
 //!
-//! |Target             |Implementation|Performance                                  |`no_std` support|
-//! |-------------------|--------------|---------------------------------------------|----------------|
-//! |Linux, macOS       |Itanium EH ABI|2.5x faster than panics                      |Yes             |
-//! |Windows (MSVC ABI) |SEH           |1.5x faster than panics                      |Yes             |
-//! |Windows (GNU ABI)  |Itanium EH ABI|2.5x faster than panics, but slower than MSVC|No              |
-//! |Emscripten         |C++ exceptions|2x faster than panics                        |Yes             |
-//! |WASI               |Itanium EH ABI|2.5x faster than panics                      |Yes             |
+//! |Target             |Implementation|Performance                                  |
+//! |-------------------|--------------|---------------------------------------------|
+//! |Linux, macOS       |Itanium EH ABI|2.5x faster than panics                      |
+//! |Windows (MSVC ABI) |SEH           |1.5x faster than panics                      |
+//! |Windows (GNU ABI)  |Itanium EH ABI|2.5x faster than panics, but slower than MSVC|
+//! |Emscripten         |C++ exceptions|2x faster than panics                        |
+//! |WASI               |Itanium EH ABI|2.5x faster than panics                      |
 //!
 //! Lithium strives to support all targets that Rust panics support. If Lithium does not work
-//! correctly on such a target, please open an issue.
+//! correctly on such a target, please [open an issue](https://github.com/iex-rs/lithium/issues/).
 //!
-//! `no_std` support can be enabled by using `default-features = false` (only on nightly). This
-//! requires an Itanium EH unwinder to be linked in on targets that use it as the implementation.
+//! On nightly, Lithium can work without `std` on certain platforms that expose native thread
+//! locals and link in an Itanium-style unwinder. Such situations are best handled on a case-by-case
+//! basis: [open an issue](https://github.com/iex-rs/lithium/issues/) if you would like to see
+//! support for a certain `std`-less target.
 //!
 //!
 //! # Safety
@@ -81,10 +83,7 @@
 //! callbacks can only interact with exceptions in an isolated manner.
 
 #![no_std]
-#![cfg_attr(
-    all(not(feature = "std"), not(backend = "unimplemented")),
-    feature(thread_local)
-)]
+#![cfg_attr(all(thread_local = "attribute"), feature(thread_local))]
 #![cfg_attr(
     any(backend = "itanium", backend = "seh", backend = "emscripten"),
     expect(
@@ -164,7 +163,7 @@
 #[cfg(panic = "abort")]
 compile_error!("Using Lithium with panic = \"abort\" is unsupported");
 
-#[cfg(any(feature = "std", test))]
+#[cfg(any(abort = "std", backend = "panic", thread_local = "std", test))]
 extern crate std;
 
 extern crate alloc;
@@ -189,12 +188,16 @@ pub use api::{catch, intercept, throw, InFlightException};
 #[cold]
 #[inline(never)]
 fn abort(message: &str) -> ! {
-    #[cfg(feature = "std")]
+    #[cfg(abort = "std")]
     {
-        std::eprintln!("{message}");
+        use std::io::Write;
+        let _ = std::io::stderr().write_all(message.as_bytes());
         std::process::abort();
     }
-    #[cfg(not(feature = "std"))]
+
+    // This is a nightly-only method, but all three backends this is enabled under require nightly
+    // anyway, so this is no big deal.
+    #[cfg(not(abort = "std"))]
     {
         let _ = message;
         core::intrinsics::abort();

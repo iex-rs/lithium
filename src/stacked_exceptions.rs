@@ -133,13 +133,13 @@ impl<E> Exception<E> {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(thread_local = "std")]
 std::thread_local! {
     /// Thread-local exception stack.
     static STACK: Stack<Header> = const { Stack::new() };
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(thread_local = "attribute")]
 #[thread_local]
 static STACK: Stack<Header> = const { Stack::new() };
 
@@ -153,14 +153,18 @@ static STACK: Stack<Header> = const { Stack::new() };
 // to inline.
 #[inline]
 unsafe fn get_stack() -> &'static Stack<Header> {
-    #[cfg(feature = "std")]
+    #[cfg(thread_local = "std")]
     // SAFETY: We require the caller to not use the reference anywhere near the end of the thread,
     // so as long as `with` succeeds, there is no problem.
     return STACK.with(|r| unsafe { core::mem::transmute(r) });
-    #[cfg(not(feature = "std"))]
+
+    #[cfg(thread_local = "attribute")]
     // SAFETY: We require the caller to not use the reference anywhere near the end of the thread,
     // so if `&STACK` is sound in the first place, there is no problem.
     return unsafe { core::mem::transmute::<&Stack<Header>, &'static Stack<Header>>(&STACK) };
+
+    #[cfg(thread_local = "unimplemented")]
+    compile_error!("Unable to compile Lithium on a platform does not support thread locals")
 }
 
 const fn get_alloc_size<E>() -> usize {

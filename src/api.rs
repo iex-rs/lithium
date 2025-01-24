@@ -200,7 +200,6 @@ mod test {
         assert_eq!(result.unwrap_err(), "Hello, world!");
     }
 
-    #[cfg(feature = "std")]
     #[test]
     fn catch_panic() {
         struct Dropper<'a>(&'a mut bool);
