@@ -42,3 +42,7 @@ panic = "unwind"
 
 [profile.release]
 panic = "unwind"
+
+# Use newer versions of emscripten and Node than cross ships by default
+[workspace.metadata.cross.target.wasm32-unknown-emscripten]
+image = "ghcr.io/iex-rs/wasm32-unknown-emscripten:latest"
