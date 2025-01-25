@@ -41,16 +41,24 @@ unsafe impl ThrowByPointer for ActiveBackend {
 
     #[inline]
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
-        let catch_data = match intercept(func, |catch_data| catch_data) {
-            Ok(value) => return Ok(value),
-            Err(catch_data) => catch_data,
+        let ptr = match intercept(func, |ex| {
+            // SAFETY: `core::intrinsics::catch_unwind` provides a pointer to a stack-allocated
+            // instance of `CatchData`. It needs to be read inside the `intercept` callback because
+            // it'll be dead by the moment `intercept` returns.
+            #[expect(
+                clippy::cast_ptr_alignment,
+                reason = "guaranteed to be aligned by rustc"
+            )]
+            unsafe {
+                (*ex.cast::<CatchData>()).ptr
+            }
+        }) {
+            Ok(result) => return Ok(result),
+            Err(ptr) => ptr,
         };
 
-        // SAFETY: `core::intrinsics::catch_unwind` provides a pointer to this structure.
-        let catch_data: &CatchData = unsafe { &*catch_data.cast() };
-
         // SAFETY: `ptr` was obtained from a `core::intrinsics::catch_unwind` call.
-        let adjusted_ptr = unsafe { __cxa_begin_catch(catch_data.ptr) };
+        let adjusted_ptr = unsafe { __cxa_begin_catch(ptr) };
 
         // SAFETY: `adjusted_ptr` points at what the unwinder thinks is a beginning of our exception
         // object. In reality, this is just the ned of header, so `sub(1)` yields the beginning of
