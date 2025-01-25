@@ -312,11 +312,13 @@ impl<P> SmallPtr<P> {
         #[cfg(target_pointer_width = "32")]
         let value = p.expose_provenance() as u32;
         #[cfg(target_pointer_width = "64")]
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "PE images are at most 4 GiB long"
+        )]
         let value = p
             .expose_provenance()
-            .wrapping_sub((&raw const __ImageBase).addr())
-            .try_into()
-            .expect("Too large image");
+            .wrapping_sub((&raw const __ImageBase).addr()) as u32;
         Self {
             value: AtomicU32::new(value),
             phantom: PhantomData,
