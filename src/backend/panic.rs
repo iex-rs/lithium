@@ -1,5 +1,6 @@
 use super::ThrowByPointer;
 use alloc::boxed::Box;
+use core::mem::ManuallyDrop;
 use core::panic::AssertUnwindSafe;
 use std::panic::{catch_unwind, resume_unwind};
 
@@ -67,7 +68,13 @@ unsafe impl ThrowByPointer for ActiveBackend {
     #[inline(always)]
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut LithiumMarker> {
         catch_unwind(AssertUnwindSafe(func)).map_err(|ex| {
-            if ex.is::<LithiumMarker>() {
+            // Rust does not know that `is` cannot unwind and attempts to generate a cleanup pad for
+            // `ex`. This increases code size, and it's bad because `intercept` is inlined into
+            // many callers. Fix this by temporarily storing `ex` in `ManuallyDrop`.
+            let ex = ManuallyDrop::new(ex);
+            let is_marker = ex.is::<LithiumMarker>();
+            let ex = ManuallyDrop::into_inner(ex);
+            if is_marker {
                 // If this is a `LithiumMarker`, it must have been produced by `throw`, because this
                 // type is crate-local and we don't use it elsewhere. The safety requirements for
                 // `throw` require no messing with unwinding up to `intercept`, so this must have
