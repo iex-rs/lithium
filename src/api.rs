@@ -27,7 +27,7 @@ use super::backend::{ActiveBackend, RethrowHandle, ThrowByValue};
 ///     throw::<&'static str>("Oops!");
 /// }
 /// ```
-#[inline(always)]
+#[inline(never)]
 pub unsafe fn throw<E>(cause: E) -> ! {
     // SAFETY: Required transitively.
     unsafe {
@@ -176,7 +176,7 @@ impl<E> InFlightException<E> {
     clippy::missing_errors_doc,
     reason = "`Err` value is described immediately"
 )]
-#[inline]
+#[inline(always)]
 pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
     // SAFETY: Requirements forwarded.
     unsafe { ActiveBackend::intercept(func) }

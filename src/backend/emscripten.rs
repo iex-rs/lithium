@@ -39,7 +39,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
         let ptr = match intercept(func, |ex| {
             // SAFETY: `core::intrinsics::catch_unwind` provides a pointer to a stack-allocated

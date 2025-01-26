@@ -39,7 +39,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
         let ex = match intercept(func, |ex| ex) {
             Ok(value) => return Ok(value),
@@ -169,6 +169,7 @@ extern "C-unwind" {
 /// # Safety
 ///
 /// `ex` must point at a valid instance of `_Unwind_Exception`.
+#[inline]
 unsafe fn raise(ex: *mut u8) -> ! {
     #[cfg(not(target_arch = "wasm32"))]
     #[expect(clippy::used_underscore_items, reason = "External API")]

@@ -33,7 +33,7 @@ pub(crate) struct ActiveBackend;
 unsafe impl ThrowByValue for ActiveBackend {
     type RethrowHandle<E> = SehRethrowHandle;
 
-    #[inline]
+    #[inline(always)]
     unsafe fn throw<E>(cause: E) -> ! {
         // We have to initialize these variables late because we can't ask the linker to do the
         // relative address computation for us. Using atomics for this removes races in Rust code,
@@ -55,7 +55,7 @@ unsafe impl ThrowByValue for ActiveBackend {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, SehRethrowHandle)> {
         enum CaughtUnwind<E> {
             LithiumException(E),
@@ -111,6 +111,7 @@ unsafe impl ThrowByValue for ActiveBackend {
 pub(crate) struct SehRethrowHandle;
 
 impl RethrowHandle for SehRethrowHandle {
+    #[inline(never)]
     unsafe fn rethrow<F>(self, new_cause: F) -> ! {
         // SAFETY: This is a rethrow, so the first throw must have initialized the tables.
         unsafe {
