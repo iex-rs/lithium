@@ -6,7 +6,7 @@ repository = "https://github.com/iex-rs/lithium"
 readme = "README.md"
 keywords = ["error", "error-handling", "exception"]
 categories = ["rust-patterns", "no-std"]
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 links = "rustlithium"  # Force uniqueness of crate version
 

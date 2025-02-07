@@ -195,7 +195,7 @@ checksum = "8e9489c2807c139ffd9c1794f4af0ebe86a828db53ecdc7fea2111d0fed085d1"
 
 [[package]]
 name = "lithium"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "autocfg",
