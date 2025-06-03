@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 export RUSTFLAGS="$RUSTFLAGS -C panic=unwind"
+export RUSTDOCFLAGS="$RUSTDOCFLAGS -C panic=unwind"
 exec cargo \
     --config "target.'wasm32-wasip1'.runner = ['node', '--no-warnings', '$(dirname "$0")/wasi.mjs', 'preview1']" \
     --config "target.'wasm32-wasip2'.runner = ['node', '--no-warnings', '$(dirname "$0")/wasi.mjs', 'preview2']" \

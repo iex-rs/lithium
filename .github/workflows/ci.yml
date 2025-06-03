@@ -108,7 +108,7 @@ jobs:
       - name: Test with panic backend (debug)
         run: LITHIUM_BACKEND=panic cross test --target $target
       - name: Test with Itanium backend (debug)
-        run: RUSTFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target -Z build-std
+        run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target -Z build-std
       - name: Test with Emscripten backend (debug)
         run: LITHIUM_BACKEND=emscripten cross test --target $target
       - name: Test with std thread locals (debug)
@@ -117,7 +117,7 @@ jobs:
         run: LITHIUM_BACKEND=panic cross test --target $target --release
       # XXX: https://github.com/rust-lang/rust/issues/132416
       # - name: Test with Itanium backend (release)
-      #   run: RUSTFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target --release -Z build-std
+      #   run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target --release -Z build-std
       - name: Test with Emscripten backend (release)
         run: LITHIUM_BACKEND=emscripten cross test --target $target --release
       - name: Test with std thread locals (release)
@@ -214,7 +214,8 @@ jobs:
           7z x llvm-mingw.zip &&
           echo "[target.${{ matrix.arch }}-pc-windows-gnullvm]" >~/.cargo/config.toml &&
           echo "linker = '$(pwd -W)/llvm-mingw-20250114-ucrt-x86_64/bin/clang'" >>~/.cargo/config.toml &&
-          echo "rustflags = ['-C', 'target-feature=+crt-static'${{ matrix.arch == 'i686' && ', ''-C'', ''link-args=-m32''' || '' }}]" >>~/.cargo/config.toml
+          echo "rustflags = ['-C', 'target-feature=+crt-static'${{ matrix.arch == 'i686' && ', ''-C'', ''link-args=-m32''' || '' }}]" >>~/.cargo/config.toml &&
+          echo "rustdocflags = ['-C', 'target-feature=+crt-static'${{ matrix.arch == 'i686' && ', ''-C'', ''link-args=-m32''' || '' }}]" >>~/.cargo/config.toml
       - name: Test with panic backend (debug)
         run: LITHIUM_BACKEND=panic ci/cargo-save "Test with panic backend (debug)" test --target $target
       - name: Test with SEH backend (debug)
