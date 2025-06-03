@@ -172,7 +172,6 @@ extern "C-unwind" {
 #[inline]
 unsafe fn raise(ex: *mut u8) -> ! {
     #[cfg(not(target_arch = "wasm32"))]
-    #[expect(clippy::used_underscore_items, reason = "External API")]
     // SAFETY: Passthrough.
     unsafe {
         _Unwind_RaiseException(ex);
