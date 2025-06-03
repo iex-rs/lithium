@@ -214,10 +214,10 @@ jobs:
         if: matrix.abi == 'gnullvm'
         run: >
           rustup target add $target &&
-          curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20250114/llvm-mingw-20250114-ucrt-${{ matrix.arch }}.zip -o llvm-mingw.zip &&
+          curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20250528/llvm-mingw-20250528-ucrt-${{ matrix.arch }}.zip -o llvm-mingw.zip &&
           7z x llvm-mingw.zip &&
           echo "[target.${{ matrix.arch }}-pc-windows-gnullvm]" >~/.cargo/config.toml &&
-          echo "linker = '$(pwd -W)/llvm-mingw-20250114-ucrt-${{ matrix.arch }}/bin/clang'" >>~/.cargo/config.toml &&
+          echo "linker = '$(pwd -W)/llvm-mingw-20250528-ucrt-${{ matrix.arch }}/bin/clang'" >>~/.cargo/config.toml &&
           echo "rustflags = ['-C', 'target-feature=+crt-static']" >>~/.cargo/config.toml &&
           echo "rustdocflags = ['-C', 'target-feature=+crt-static']" >>~/.cargo/config.toml
       - name: Test with panic backend (debug)
