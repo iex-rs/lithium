@@ -281,22 +281,34 @@ jobs:
           - os: ubuntu-latest
             ubuntu_arch: i386
             rust_arch: i686
+          # XXX: wine hangs on ubuntu-24.04-arm AND ubuntu-22.04-arm provides ancient wine
+          # https://github.com/actions/partner-runner-images/issues/31
+          - os: ubuntu-22.04-arm
+            ubuntu_arch: arm64
+            rust_arch: aarch64
+        abi: [msvc, gnu, gnullvm]
         # XXX: We should eventually enable 'gnullvm', too. Itanium under gnullvm is currently broken
         # because Wine does not currently align module thread locals correctly, and we rely on that.
         # https://bugs.winehq.org/show_bug.cgi?id=57700
-        abi: [msvc, gnu]
+        exclude:
+          - abi: gnullvm
+          - machine:
+              rust_arch: aarch64
+            abi: gnu
     env:
+      WINEPREFIX: /tmp/prefix
       WINEDEBUG: fixme+all,err+all  # :ferrisClueless:
       target: ${{ matrix.machine.rust_arch }}-pc-windows-${{ matrix.abi }}
+    container: debian:trixie-slim
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Install wine
         run: |
           set -exuo pipefail
-          sudo dpkg --add-architecture ${{ matrix.machine.ubuntu_arch }}
-          sudo apt-get update
-          sudo apt install wine:${{ matrix.machine.ubuntu_arch }}
+          dpkg --add-architecture ${{ matrix.machine.ubuntu_arch }}
+          apt-get update
+          apt-get -y install wine:${{ matrix.machine.ubuntu_arch }}
           wineboot
       - name: Download built tests
         uses: actions/download-artifact@v4
