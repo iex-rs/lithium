@@ -68,10 +68,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
         // SAFETY: `ex` points at a valid header. We're unique, so no data races are possible.
         if unsafe { (*ex).exception_type } != &raw const TYPE_INFO {
             // Rust panic or a foreign exception. Either way, rethrow.
-            // SAFETY: This function has no preconditions.
-            unsafe {
-                __cxa_rethrow();
-            }
+            __cxa_rethrow();
         }
 
         // Prevent `__cxa_end_catch` from trying to deallocate the exception object with free(3) and
@@ -82,10 +79,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
             (*ex).reference_count = 2;
         }
 
-        // SAFETY: This function has no preconditions.
-        unsafe {
-            __cxa_end_catch();
-        }
+        __cxa_end_catch();
 
         Err(ex)
     }
@@ -119,7 +113,7 @@ struct CatchData {
     is_rust_panic: bool,
 }
 
-extern "C" {
+unsafe extern "C" {
     #[link_name = "\x01_ZTVN10__cxxabiv117__class_type_infoE"]
     static CLASS_TYPE_INFO_VTABLE: [u8; 0];
 }
@@ -131,12 +125,12 @@ static TYPE_INFO: TypeInfo = TypeInfo {
     name: c"lithium_exception".as_ptr(),
 };
 
-extern "C-unwind" {
+unsafe extern "C-unwind" {
     fn __cxa_begin_catch(thrown_exception: *mut ()) -> *mut ();
 
-    fn __cxa_rethrow() -> !;
+    safe fn __cxa_rethrow() -> !;
 
-    fn __cxa_end_catch();
+    safe fn __cxa_end_catch();
 
     fn __cxa_throw(
         thrown_object: *mut (),

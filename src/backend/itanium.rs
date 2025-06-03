@@ -160,7 +160,7 @@ unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-extern "C-unwind" {
+unsafe extern "C-unwind" {
     fn _Unwind_RaiseException(ex: *mut u8) -> !;
 }
 

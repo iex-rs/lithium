@@ -285,7 +285,7 @@ thiscall! {
     }
 }
 
-extern "C" {
+unsafe extern "C" {
     #[cfg(target_pointer_width = "64")]
     static __ImageBase: u8;
 
@@ -350,7 +350,7 @@ impl<T: ?Sized> SmallPtr<*const T> {
     }
 }
 
-extern "system-unwind" {
+unsafe extern "system-unwind" {
     fn RaiseException(
         code: u32,
         flags: u32,
@@ -361,12 +361,12 @@ extern "system-unwind" {
 
 // This is provided by the `panic_unwind` built-in crate, so it's always available if
 // panic = "unwind" holds
-extern "Rust" {
+unsafe extern "Rust" {
     #[rustc_std_internal_symbol]
-    fn __rust_start_panic(payload: &mut dyn PanicPayload) -> u32;
+    safe fn __rust_start_panic(payload: &mut dyn PanicPayload) -> u32;
 }
 
-extern "C" {
+unsafe extern "C" {
     #[expect(improper_ctypes, reason = "Copied from std")]
     #[rustc_std_internal_symbol]
     fn __rust_panic_cleanup(payload: *mut u8) -> *mut (dyn Any + Send + 'static);
@@ -395,10 +395,7 @@ fn throw_std_panic(payload: Box<dyn Any + Send + 'static>) -> ! {
         }
     }
 
-    // SAFETY: Copied straight from std.
-    unsafe {
-        __rust_start_panic(&mut RewrapBox(payload));
-    }
+    __rust_start_panic(&mut RewrapBox(payload));
     core::intrinsics::abort();
 }
 
