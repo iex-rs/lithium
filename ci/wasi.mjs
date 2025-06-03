@@ -13,4 +13,4 @@ const wasi = new WASI({
 const wasm = await WebAssembly.compile(await readFile(process.argv[3]));
 const instance = await WebAssembly.instantiate(wasm, wasi.getImportObject());
 
-wasi.start(instance);
+process.exit(wasi.start(instance));
