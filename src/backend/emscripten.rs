@@ -121,12 +121,13 @@ struct CatchData {
 
 extern "C" {
     #[link_name = "\x01_ZTVN10__cxxabiv117__class_type_infoE"]
-    static CLASS_TYPE_INFO_VTABLE: [usize; 3];
+    static CLASS_TYPE_INFO_VTABLE: [u8; 0];
 }
 
 static TYPE_INFO: TypeInfo = TypeInfo {
-    // Normally we would use .as_ptr().add(2) but this doesn't work in a const context.
-    vtable: unsafe { &CLASS_TYPE_INFO_VTABLE[2] },
+    vtable: (&raw const CLASS_TYPE_INFO_VTABLE)
+        .cast::<usize>()
+        .wrapping_add(2),
     name: c"lithium_exception".as_ptr(),
 };
 
