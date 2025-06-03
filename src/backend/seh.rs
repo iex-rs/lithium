@@ -362,11 +362,13 @@ extern "system-unwind" {
 // This is provided by the `panic_unwind` built-in crate, so it's always available if
 // panic = "unwind" holds
 extern "Rust" {
+    #[rustc_std_internal_symbol]
     fn __rust_start_panic(payload: &mut dyn PanicPayload) -> u32;
 }
 
 extern "C" {
     #[expect(improper_ctypes, reason = "Copied from std")]
+    #[rustc_std_internal_symbol]
     fn __rust_panic_cleanup(payload: *mut u8) -> *mut (dyn Any + Send + 'static);
 }
 
