@@ -3,8 +3,14 @@ set -e
 
 run() {
     echo "::group::$1"
-    shift
+    expected_exit_code="$2"
+    shift 2
     wine "$@"
+    exit_code="$?"
+    if [[ $expected_exit_code -ne $exit_code ]]; then
+        echo "exit code $exit_code, expected $expected_exit_code"
+        exit 1
+    fi
     echo ::endgroup::
 }
 

@@ -10,9 +10,12 @@ if [[ "$1" == --run ]]; then
     chmod +x "$path"
     shift 3
 
-    printf -v code "%q " run "$description" "$path" "$@"
+    "$path" "$@"
+    exit_code="$?"
+
+    printf -v code "%q " run "$description" "$exit_code" "$path" "$@"
     echo "$code" >>saved-jobs/list
-    exec "$path" "$@"
+    exit "$exit_code"
 fi
 
 # Explicitly specifying the native path to shell is necessary for Windows
