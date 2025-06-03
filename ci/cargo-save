@@ -15,7 +15,16 @@ if [[ "$1" == --run ]]; then
     exec "$path" "$@"
 fi
 
+# Explicitly specifying the native path to shell is necessary for Windows
+case "$OSTYPE" in
+    msys*|cygwin*)
+        shell="$(cygpath -w "$SHELL")"
+        ;;
+    *)
+        shell="$SHELL"
+        ;;
+esac
+
 description="$1"
 shift
-# Explicitly specifying 'bash' is necessary for Windows
-exec cargo --config "target.'$target'.runner = ['bash', '$(dirname "$0")/cargo-save', '--run', '$description']" "$@"
+exec cargo --config "target.'$target'.runner = ['$shell', '$(dirname "$0")/cargo-save', '--run', '$description']" "$@"
