@@ -190,22 +190,40 @@ jobs:
 
   windows:
     timeout-minutes: 5
-    runs-on: windows-latest
+    runs-on: ${{ matrix.machine.os }}
     if: success() || failure()
     strategy:
       fail-fast: false
       matrix:
-        arch: [x86_64, i686]
+        machine:
+          - os: windows-latest
+            arch: x86_64
+          - os: windows-latest
+            arch: i686
+          - os: windows-11-arm
+            arch: aarch64
         abi: [msvc, gnu, gnullvm]
+        exclude:
+          # rustc does not support aarch64-pc-windows-gnu (2025-06-03)
+          - machine:
+              arch: aarch64
+            abi: gnu
     env:
-      host: ${{ matrix.arch }}-pc-windows-${{ matrix.abi == 'gnullvm' && 'gnu' || matrix.abi }}
-      target: ${{ matrix.arch }}-pc-windows-${{ matrix.abi }}
+      host: ${{ matrix.machine.arch }}-pc-windows-${{ matrix.abi == 'gnullvm' && (matrix.machine.arch == 'aarch64' && 'msvc' || 'gnu') || matrix.abi }}
+      target: ${{ matrix.machine.arch }}-pc-windows-${{ matrix.abi }}
     defaults:
       run:
         shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      # XXX: https://github.com/actions/partner-runner-images/issues/77#issuecomment-2816803368
+      - name: Install rustup on Windows ARM
+        if: matrix.machine.os == 'windows-11-arm'
+        run: |
+          curl -LOs https://static.rust-lang.org/rustup/dist/aarch64-pc-windows-msvc/rustup-init.exe
+          ./rustup-init.exe -y --default-toolchain none --no-modify-path
+          echo "$USERPROFILE/.cargo/bin" >> "$GITHUB_PATH"
       - name: Set default-host
         run: rustup set default-host $host
       - name: Install Rust
@@ -214,10 +232,10 @@ jobs:
         if: matrix.abi == 'gnullvm'
         run: >
           rustup target add $target &&
-          curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20250528/llvm-mingw-20250528-ucrt-${{ matrix.arch }}.zip -o llvm-mingw.zip &&
+          curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20250528/llvm-mingw-20250528-ucrt-${{ matrix.machine.arch }}.zip -o llvm-mingw.zip &&
           7z x llvm-mingw.zip &&
-          echo "[target.${{ matrix.arch }}-pc-windows-gnullvm]" >~/.cargo/config.toml &&
-          echo "linker = '$(pwd -W)/llvm-mingw-20250528-ucrt-${{ matrix.arch }}/bin/clang'" >>~/.cargo/config.toml &&
+          echo "[target.${{ matrix.machine.arch }}-pc-windows-gnullvm]" >~/.cargo/config.toml &&
+          echo "linker = '$(pwd -W)/llvm-mingw-20250528-ucrt-${{ matrix.machine.arch }}/bin/clang'" >>~/.cargo/config.toml &&
           echo "rustflags = ['-C', 'target-feature=+crt-static']" >>~/.cargo/config.toml &&
           echo "rustdocflags = ['-C', 'target-feature=+crt-static']" >>~/.cargo/config.toml
       - name: Test with panic backend (debug)
