@@ -208,8 +208,14 @@ jobs:
           - machine:
               arch: aarch64
             abi: gnu
+        # XXX: arm64ec is broken. https://github.com/rust-lang/rust/issues/138541
+        # include:
+        #   - machine:
+        #       os: windows-11-arm
+        #       arch: arm64ec
+        #     abi: msvc
     env:
-      host: ${{ matrix.machine.arch }}-pc-windows-${{ matrix.abi == 'gnullvm' && (matrix.machine.arch == 'aarch64' && 'msvc' || 'gnu') || matrix.abi }}
+      host: ${{ matrix.machine.arch == 'arm64ec' && 'aarch64' || matrix.machine.arch }}-pc-windows-${{ matrix.abi == 'gnullvm' && (matrix.machine.arch == 'aarch64' && 'msvc' || 'gnu') || matrix.abi }}
       target: ${{ matrix.machine.arch }}-pc-windows-${{ matrix.abi }}
     defaults:
       run:
@@ -228,10 +234,11 @@ jobs:
         run: rustup set default-host $host
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
+      - name: Add target
+        run: rustup target add $target
       - name: Install and configure LLVM-MinGW
         if: matrix.abi == 'gnullvm'
         run: >
-          rustup target add $target &&
           curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20250528/llvm-mingw-20250528-ucrt-${{ matrix.machine.arch }}.zip -o llvm-mingw.zip &&
           7z x llvm-mingw.zip &&
           echo "[target.${{ matrix.machine.arch }}-pc-windows-gnullvm]" >~/.cargo/config.toml &&
@@ -295,6 +302,12 @@ jobs:
           - machine:
               rust_arch: aarch64
             abi: gnu
+        # include:
+        #   - machine:
+        #       os: ubuntu-22.04-arm
+        #       ubuntu_arch: arm64
+        #       rust_arch: arm64ec
+        #     abi: msvc
     env:
       WINEPREFIX: /tmp/prefix
       WINEDEBUG: fixme+all,err+all  # :ferrisClueless:
