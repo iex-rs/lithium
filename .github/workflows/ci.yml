@@ -277,7 +277,7 @@ jobs:
           retention-days: 1
 
   wine:
-    timeout-minutes: 3
+    timeout-minutes: 5
     runs-on: ${{ matrix.machine.os }}
     needs: windows
     strategy:
