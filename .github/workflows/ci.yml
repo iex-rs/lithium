@@ -11,7 +11,7 @@ env:
 
 jobs:
   linux-native:
-    timeout-minutes: 3
+    timeout-minutes: 5
     runs-on: ${{ matrix.machine.os }}
     if: success() || failure()
     strategy:
@@ -130,7 +130,7 @@ jobs:
         run: LITHIUM_THREAD_LOCAL=std cross test --target $target --release
 
   wasi:
-    timeout-minutes: 3
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     if: success() || failure()
     env:
@@ -163,7 +163,7 @@ jobs:
       #   run: LITHIUM_THREAD_LOCAL=std ci/cargo-wasi test --target $target --release
 
   darwin:
-    timeout-minutes: 3
+    timeout-minutes: 5
     runs-on: ${{ matrix.os }}
     if: success() || failure()
     strategy:
@@ -389,7 +389,7 @@ jobs:
         run: LITHIUM_THREAD_LOCAL=std cargo valgrind test --release
 
   test-stable:
-    timeout-minutes: 3
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     if: success() || failure()
     steps:
@@ -403,7 +403,7 @@ jobs:
         run: cargo test --release
 
   lint:
-    timeout-minutes: 1
+    timeout-minutes: 2
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
