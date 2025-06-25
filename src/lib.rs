@@ -66,8 +66,8 @@
 //! struct B;
 //!
 //! unsafe {
-//!     let _ = catch::<_, A>(|| {
-//!         let _ = catch::<_, B>(|| throw(B));
+//!     let _ = catch::<(), A>(|| {
+//!         let _ = catch::<(), B>(|| throw(B));
 //!         throw(A);
 //!     });
 //! }
@@ -180,7 +180,7 @@ mod stacked_exceptions;
 #[cfg(any(backend = "itanium", backend = "seh", backend = "emscripten"))]
 mod intrinsic;
 
-pub use api::{catch, intercept, throw, InFlightException};
+pub use api::{InFlightException, catch, intercept, throw};
 
 /// Abort the process with a message.
 ///

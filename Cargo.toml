@@ -7,7 +7,7 @@ readme = "README.md"
 keywords = ["error", "error-handling", "exception"]
 categories = ["rust-patterns", "no-std"]
 version = "1.0.4"
-edition = "2021"
+edition = "2024"
 links = "rustlithium"  # Force uniqueness of crate version
 
 [dependencies]

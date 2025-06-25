@@ -2,7 +2,7 @@ use super::{
     backend::{ActiveBackend, RethrowHandle, ThrowByPointer, ThrowByValue},
     heterogeneous_stack::unbounded::Stack,
 };
-use core::mem::{offset_of, ManuallyDrop};
+use core::mem::{ManuallyDrop, offset_of};
 
 // SAFETY:
 // - The main details are forwarded to the `ThrowByPointer` impl.

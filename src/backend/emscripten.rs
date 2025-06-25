@@ -145,5 +145,7 @@ unsafe extern "C-unwind" {
 ///
 /// `ex` must point at a valid exception object.
 unsafe extern "C" fn cleanup(_ex: *mut ()) -> *mut () {
-    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.\n");
+    abort(
+        "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.\n",
+    );
 }

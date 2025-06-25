@@ -165,8 +165,8 @@ impl<E> InFlightException<E> {
 ///     // SAFETY:
 ///     // - f only ever throws Error
 ///     // - no exception is thrown between `intercept` returning and call to `rethrow`
-///     match intercept::<_, Error>(|| f()) {
-///         Ok(x) => x,
+///     match intercept::<(), Error>(|| f()) {
+///         Ok(()) => {},
 ///         Err((e, handle)) => handle.rethrow(e.context("in g")),
 ///     }
 /// }

@@ -198,7 +198,7 @@ mod test {
     #[test]
     fn intercept_err() {
         let result = unsafe {
-            ActiveBackend::intercept::<_, _, String>(|| {
+            ActiveBackend::intercept::<_, (), String>(|| {
                 ActiveBackend::throw(String::from("Hello, world!"));
             })
         };
@@ -235,7 +235,7 @@ mod test {
     #[test]
     fn rethrow() {
         let result = unsafe {
-            ActiveBackend::intercept::<_, _, String>(|| {
+            ActiveBackend::intercept::<_, (), String>(|| {
                 let result = ActiveBackend::intercept::<_, _, String>(|| {
                     ActiveBackend::throw(String::from("Hello, world!"));
                 });
@@ -259,7 +259,7 @@ mod test {
 
         let mut destructor_was_run = false;
         let result = unsafe {
-            ActiveBackend::intercept::<_, _, String>(|| {
+            ActiveBackend::intercept::<_, (), String>(|| {
                 let _dropper = Dropper(&mut destructor_was_run);
                 ActiveBackend::throw(String::from("Hello, world!"));
             })
@@ -276,7 +276,7 @@ mod test {
         impl Drop for Dropper {
             fn drop(&mut self) {
                 let result = unsafe {
-                    ActiveBackend::intercept::<_, _, String>(|| {
+                    ActiveBackend::intercept::<_, (), String>(|| {
                         ActiveBackend::throw(String::from("Awful idea"));
                     })
                 };
@@ -286,7 +286,7 @@ mod test {
         }
 
         let result = unsafe {
-            ActiveBackend::intercept::<_, _, String>(|| {
+            ActiveBackend::intercept::<_, (), String>(|| {
                 let _dropper = Dropper;
                 ActiveBackend::throw(String::from("Hello, world!"));
             })

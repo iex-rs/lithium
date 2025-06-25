@@ -255,7 +255,9 @@ static THROW_INFO: ThrowInfo = ThrowInfo {
 };
 
 fn abort_on_caught_by_cxx() -> ! {
-    abort("A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.\n");
+    abort(
+        "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.\n",
+    );
 }
 
 thiscall! {

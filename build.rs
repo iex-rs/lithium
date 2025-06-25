@@ -1,4 +1,4 @@
-use rustc_version::{version_meta, Channel};
+use rustc_version::{Channel, version_meta};
 
 fn has_cfg(name: &str) -> bool {
     std::env::var_os(format!("CARGO_CFG_{}", name.to_uppercase())).is_some()
