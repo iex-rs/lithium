@@ -84,7 +84,7 @@
 //! callbacks can only interact with exceptions in an isolated manner.
 
 #![no_std]
-#![cfg_attr(all(thread_local = "attribute"), feature(thread_local))]
+#![cfg_attr(thread_local = "attribute", feature(thread_local))]
 #![cfg_attr(
     any(backend = "itanium", backend = "seh", backend = "emscripten"),
     expect(
