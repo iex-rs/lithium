@@ -92,4 +92,5 @@ unsafe impl ThrowByPointer for ActiveBackend {
     }
 }
 
+#[repr(transparent)]
 pub(crate) struct LithiumMarker;
