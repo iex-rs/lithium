@@ -11,7 +11,8 @@ use super::backend::{ActiveBackend, RethrowHandle, ThrowByValue};
 ///
 /// In addition, the caller must ensure that the exception can only be caught by Lithium functions
 /// and not by the system runtime. The list of banned functions includes
-/// [`std::panic::catch_unwind`] and [`std::thread::spawn`], as well as throwing from `main`.
+/// [`std::panic::catch_unwind`] and [`std::thread::spawn`], as well as throwing from `main` or
+/// tests.
 ///
 /// For this reason, the caller must ensure no frames between [`throw`] and [`catch`] can catch the
 /// exception. This includes not passing throwing callbacks to foreign crates, but also not using
@@ -20,10 +21,11 @@ use super::backend::{ActiveBackend, RethrowHandle, ThrowByValue};
 ///
 /// # Example
 ///
-/// ```should_panic
+/// ```
 /// use lithium::throw;
 ///
-/// unsafe {
+/// /// Throws `&'static str`.
+/// unsafe fn throwing() {
 ///     throw::<&'static str>("Oops!");
 /// }
 /// ```
