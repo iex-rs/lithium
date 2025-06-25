@@ -210,12 +210,11 @@ jobs:
           - machine:
               arch: aarch64
             abi: gnu
-        # XXX: arm64ec is broken. https://github.com/rust-lang/rust/issues/138541
-        # include:
-        #   - machine:
-        #       os: windows-11-arm
-        #       arch: arm64ec
-        #     abi: msvc
+        include:
+          - machine:
+              os: windows-11-arm
+              arch: arm64ec
+            abi: msvc
     env:
       host: ${{ matrix.machine.arch == 'arm64ec' && 'aarch64' || matrix.machine.arch }}-pc-windows-${{ matrix.abi == 'gnullvm' && (matrix.machine.arch == 'aarch64' && 'msvc' || 'gnu') || matrix.abi }}
       target: ${{ matrix.machine.arch }}-pc-windows-${{ matrix.abi }}
@@ -304,6 +303,8 @@ jobs:
           - machine:
               rust_arch: aarch64
             abi: gnu
+        # Wine doesn't support arm64ec out of the box yet, see
+        # https://bugs.winehq.org/show_bug.cgi?id=58092
         # include:
         #   - machine:
         #       os: ubuntu-22.04-arm
