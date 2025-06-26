@@ -56,7 +56,7 @@ unsafe impl ThrowByValue for ActiveBackend {
     }
 
     #[inline(always)]
-    unsafe fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, SehRethrowHandle)> {
+    fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, SehRethrowHandle)> {
         enum CaughtUnwind<E> {
             LithiumException(E),
             RustPanic(Box<dyn Any + Send + 'static>),

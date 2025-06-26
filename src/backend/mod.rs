@@ -118,28 +118,19 @@ pub unsafe trait ThrowByValue {
     /// For this reason, the caller must ensure no intermediate frames can affect unwinding. This
     /// includes not passing throwing callbacks to foreign crates, but also not using `throw` in own
     /// code that might `intercept` an exception without cooperation with the throwing side.
+    /// Notably, this also requires that exceptions aren't thrown across a frame that holds a live
+    /// [`RethrowHandle`].
     unsafe fn throw<E>(cause: E) -> !;
 
     /// Catch an exception.
     ///
     /// This function returns `Ok` if the function returns normally, or `Err` if it throws (and the
     /// thrown exception is not caught by a nested interceptor).
-    ///
-    /// # Safety
-    ///
-    /// The type `E` must match the type of the thrown exception.
-    ///
-    /// In addition, certain requirements are imposed on how the returned [`RethrowHandle`] is used.
-    /// In particular, no exceptions may be thrown between the moment this function returns and the
-    /// moment the handle is dropped (either by calling [`drop`] or by calling its
-    /// [`RethrowHandle::rethrow`] method). Panics, however, are allowed, as are caught exceptions.
     #[allow(
         clippy::missing_errors_doc,
         reason = "`Err` value is described immediately"
     )]
-    unsafe fn intercept<Func: FnOnce() -> R, R, E>(
-        func: Func,
-    ) -> Result<R, (E, Self::RethrowHandle<E>)>;
+    fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, Self::RethrowHandle<E>)>;
 }
 
 /// A rethrow handle.
@@ -190,25 +181,22 @@ mod test {
 
     #[test]
     fn intercept_ok() {
-        let result =
-            unsafe { ActiveBackend::intercept::<_, _, ()>(|| String::from("Hello, world!")) };
+        let result = ActiveBackend::intercept::<_, _, ()>(|| String::from("Hello, world!"));
         assert_eq!(result.unwrap(), "Hello, world!");
     }
 
     #[test]
     fn intercept_err() {
-        let result = unsafe {
-            ActiveBackend::intercept::<_, (), String>(|| {
-                ActiveBackend::throw(String::from("Hello, world!"));
-            })
-        };
+        let result = ActiveBackend::intercept::<_, (), String>(|| unsafe {
+            ActiveBackend::throw(String::from("Hello, world!"));
+        });
         let (caught_ex, _) = result.unwrap_err();
         assert_eq!(caught_ex, "Hello, world!");
     }
 
     #[test]
     fn intercept_panic() {
-        let result = std::panic::catch_unwind(|| unsafe {
+        let result = std::panic::catch_unwind(|| {
             ActiveBackend::intercept::<_, _, ()>(|| {
                 std::panic::resume_unwind(alloc::boxed::Box::new("Hello, world!"))
             })
@@ -221,29 +209,27 @@ mod test {
 
     #[test]
     fn nested_intercept() {
-        let result = unsafe {
-            ActiveBackend::intercept::<_, _, ()>(|| {
-                ActiveBackend::intercept::<_, _, String>(|| {
-                    ActiveBackend::throw(String::from("Hello, world!"));
-                })
+        let result = ActiveBackend::intercept::<_, _, ()>(|| {
+            ActiveBackend::intercept::<_, _, String>(|| unsafe {
+                ActiveBackend::throw(String::from("Hello, world!"));
             })
-        };
+        });
         let (caught_ex, _) = result.unwrap().unwrap_err();
         assert_eq!(caught_ex, "Hello, world!");
     }
 
     #[test]
     fn rethrow() {
-        let result = unsafe {
-            ActiveBackend::intercept::<_, (), String>(|| {
-                let result = ActiveBackend::intercept::<_, _, String>(|| {
-                    ActiveBackend::throw(String::from("Hello, world!"));
-                });
-                let (ex2, handle) = result.unwrap_err();
-                assert_eq!(ex2, "Hello, world!");
+        let result = ActiveBackend::intercept::<_, (), String>(|| {
+            let result = ActiveBackend::intercept::<_, _, String>(|| unsafe {
+                ActiveBackend::throw(String::from("Hello, world!"));
+            });
+            let (ex2, handle) = result.unwrap_err();
+            assert_eq!(ex2, "Hello, world!");
+            unsafe {
                 handle.rethrow(ex2);
-            })
-        };
+            }
+        });
         let (caught_ex, _) = result.unwrap_err();
         assert_eq!(caught_ex, "Hello, world!");
     }
@@ -258,12 +244,12 @@ mod test {
         }
 
         let mut destructor_was_run = false;
-        let result = unsafe {
-            ActiveBackend::intercept::<_, (), String>(|| {
-                let _dropper = Dropper(&mut destructor_was_run);
+        let result = ActiveBackend::intercept::<_, (), String>(|| {
+            let _dropper = Dropper(&mut destructor_was_run);
+            unsafe {
                 ActiveBackend::throw(String::from("Hello, world!"));
-            })
-        };
+            }
+        });
         let (caught_ex, _) = result.unwrap_err();
         assert_eq!(caught_ex, "Hello, world!");
 
@@ -275,22 +261,20 @@ mod test {
         struct Dropper;
         impl Drop for Dropper {
             fn drop(&mut self) {
-                let result = unsafe {
-                    ActiveBackend::intercept::<_, (), String>(|| {
-                        ActiveBackend::throw(String::from("Awful idea"));
-                    })
-                };
+                let result = ActiveBackend::intercept::<_, (), String>(|| unsafe {
+                    ActiveBackend::throw(String::from("Awful idea"));
+                });
                 let (caught_ex2, _) = result.unwrap_err();
                 assert_eq!(caught_ex2, "Awful idea");
             }
         }
 
-        let result = unsafe {
-            ActiveBackend::intercept::<_, (), String>(|| {
-                let _dropper = Dropper;
+        let result = ActiveBackend::intercept::<_, (), String>(|| {
+            let _dropper = Dropper;
+            unsafe {
                 ActiveBackend::throw(String::from("Hello, world!"));
-            })
-        };
+            }
+        });
         let (caught_ex1, _) = result.unwrap_err();
         assert_eq!(caught_ex1, "Hello, world!");
     }

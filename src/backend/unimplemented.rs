@@ -11,9 +11,7 @@ unsafe impl ThrowByValue for ActiveBackend {
         unimplemented!()
     }
 
-    unsafe fn intercept<Func: FnOnce() -> R, R, E>(
-        _func: Func,
-    ) -> Result<R, (E, Self::RethrowHandle<E>)> {
+    fn intercept<Func: FnOnce() -> R, R, E>(_func: Func) -> Result<R, (E, Self::RethrowHandle<E>)> {
         unimplemented!()
     }
 }

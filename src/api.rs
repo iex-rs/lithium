@@ -1,30 +1,19 @@
 use super::backend::{ActiveBackend, RethrowHandle, ThrowByValue};
 
-// Module invariant: thrown exceptions of type `E` are passed to the backend as instance of
-// `Exception<E>` with the cause filled, which is immediately read out upon catch.
-
 /// Throw an exception.
 ///
 /// # Safety
 ///
-/// See the safety section of [this crate](crate) for information on matching types.
-///
-/// In addition, the caller must ensure that the exception can only be caught by Lithium functions
-/// and not by the system runtime. The list of banned functions includes
-/// [`std::panic::catch_unwind`] and [`std::thread::spawn`], as well as throwing from `main` or
-/// tests.
-///
-/// For this reason, the caller must ensure no frames between [`throw`] and [`catch`] can catch the
-/// exception. This includes not passing throwing callbacks to foreign crates, but also not using
-/// [`throw`] in own code that might [`intercept`] an exception without cooperation with the
-/// throwing side.
+/// The caller must ensure that the exception can only be caught by Lithium functions with
+/// a matching error type, and that execution doesn't unwind across an in-flight exception. See the
+/// safety section of [this crate](crate) for more information.
 ///
 /// # Example
 ///
-/// ```
+/// ```rust
 /// use lithium::throw;
 ///
-/// /// Throws `&'static str`.
+/// /// Throws Lithium exception of type `&'static str`.
 /// unsafe fn throwing() {
 ///     throw::<&'static str>("Oops!");
 /// }
@@ -48,20 +37,20 @@ pub unsafe fn throw<E>(cause: E) -> ! {
 ///
 /// Rust panics are propagated as-is and not caught.
 ///
-/// # Safety
-///
-/// `func` must only throw exceptions of type `E`. See the safety section of [this crate](crate) for
-/// more information.
+/// Note that while this is a safe function, choosing the right error type is crucial to correctly
+/// invoking `unsafe` throwing functions inside the `func` callback.
 ///
 /// # Example
 ///
 /// ```rust
 /// use lithium::{catch, throw};
 ///
-/// // SAFETY: the exception type matches
-/// let res = unsafe {
-///     catch::<(), &'static str>(|| throw::<&'static str>("Oops!"))
-/// };
+/// let res = catch::<(), &'static str>(|| {
+///     // SAFETY: caught by the matching `catch` above
+///     unsafe {
+///         throw::<&'static str>("Oops!");
+///     }
+/// });
 ///
 /// assert_eq!(res, Err("Oops!"));
 /// ```
@@ -70,12 +59,10 @@ pub unsafe fn throw<E>(cause: E) -> ! {
     reason = "`Err` value is described immediately"
 )]
 #[inline]
-pub unsafe fn catch<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
-    // SAFETY:
-    // - `func` only throws `E` by the safety requirement.
-    // - `InFlightException` is immediately dropped before returning from `catch`, so no exceptions
-    //   may be thrown while it's alive.
-    unsafe { intercept(func) }.map_err(|(cause, _)| cause)
+pub fn catch<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
+    // `InFlightException` is immediately dropped before returning from `catch`, so no exceptions
+    // may be thrown while it's alive.
+    intercept(func).map_err(|(cause, _)| cause)
 }
 
 /// Not-quite-caught exception.
@@ -95,16 +82,9 @@ impl<E> InFlightException<E> {
     ///
     /// # Safety
     ///
-    /// See the safety section of [this crate](crate) for information on matching types.
-    ///
-    /// In addition, the caller must ensure that the exception can only be caught by Lithium
-    /// functions and not by the system runtime. The list of banned functions includes
-    /// [`std::panic::catch_unwind`] and [`std::thread::spawn`].
-    ///
-    /// For this reason, the caller must ensure no frames between `rethrow` and [`catch`] can catch
-    /// the exception. This includes not passing throwing callbacks to foreign crates, but also not
-    /// using `rethrow` in own code that might [`intercept`] an exception without cooperation with
-    /// the throwing side.
+    /// The caller must ensure that the exception can only be caught by Lithium functions with
+    /// a matching error type, and that execution doesn't unwind across an in-flight exception. See
+    /// the safety section of [this crate](crate) for more information.
     #[inline]
     pub unsafe fn rethrow<F>(self, new_cause: F) -> ! {
         // SAFETY: Requirements forwarded.
@@ -119,34 +99,96 @@ impl<E> InFlightException<E> {
 /// If `func` returns a value, this function wraps it in [`Ok`].
 ///
 /// If `func` throws an exception, the error cause along with a handle to the exception is returned
-/// in [`Err`]. This handle can be used to rethrow the exception, possibly modifying its value or
-/// type in the process.
+/// in [`Err`]. This handle can be used to rethrow the exception via [`InFlightException::rethrow`],
+/// possibly modifying its value or type in the process. This is more efficient than [`catch`]ing
+/// and throwing a new exception because it can reuse existing unwinding contexts.
 ///
-/// If you always need to catch the exception, use [`catch`] instead. This function is mostly useful
-/// as an analogue of [`Result::map_err`].
+/// If you always need to catch the exception, use [`catch`] instead. `intercept` is mostly useful
+/// as an optimal analogue of [`Result::map_err`].
 ///
 /// Rust panics are propagated as-is and not caught.
 ///
-/// # Safety
+/// Note that while this is a safe function, choosing the right error type and not misusing the
+/// returned handle is crucial to correctly invoking `unsafe` throwing functions inside the `func`
+/// callback.
 ///
-/// `func` must only throw exceptions of type `E`. See the safety section of [this crate](crate) for
-/// more information.
+/// # In-flight exceptions
 ///
-/// **In addition**, certain requirements are imposed on how the returned [`InFlightException`] is
-/// used. In particular, no exceptions may be thrown between the moment this function returns
-/// an [`InFlightException`] and the moment it is dropped (either by calling [`drop`] or by calling
-/// its [`InFlightException::rethrow`] method). Panics, however, are allowed.
+/// If `func` throws, `intercept` catches the exception without finalizing it. Finalization is
+/// delayed until the handle is either dropped (e.g. via `drop` or by going out of scope) or
+/// rethrown (via [`InFlightException::rethrow`]).
 ///
-/// Caught exceptions are not subject to this requirement, i.e. the following pattern is safe:
+/// The range of allowed operations is reduced during the "critical zone" while an exception is in
+/// flight. The rules basically amount to "in-flight exceptions must be correctly nested":
 ///
-/// ```rust
+/// 1. Every exception thrown while another exception is in flight must be caught within the same
+///    range. In other words, control flow must not unwind across a stack frame holding an in-flight
+///    exception. Rust panics are exempt from this requirement.
+///
+/// 2. Every exception intercepted while another exception is in flight must be finalized before the
+///    first exception. In other words, if `intercept` is called twice, the returned handles must be
+///    dropped in the inverse order of creation. (Coupled with the first rule, this implies that
+///    rethrowing the inner exception via a handle is always UB.)
+///
+/// Note that leaking the exception handle with [`core::mem::forget`] is not a "get out of jail
+/// free" card, it just extends the critical zone until the end of the program.
+///
+/// Here are two counterexamples with undefined behavior:
+///
+/// ```no_run
 /// use lithium::{intercept, throw};
 ///
+/// // This creates an in-flight exception
+/// let result = intercept::<(), i32>(|| {
+///     // SAFETY: immediately caught by correctly typed `intercept`
+///     unsafe {
+///         throw::<i32>(1);
+///     }
+/// });
+///
+/// // This throws while an exception is in flight. This is UB!
+/// // If this statement was wrapped in `catch`, it would've been fine.
+/// // SAFETY: none
 /// unsafe {
-///     let result = intercept::<(), i32>(|| throw::<i32>(1));
-///     drop(intercept::<(), i32>(|| throw::<i32>(2)));
-///     drop(result);
+///     throw::<i32>(2);
 /// }
+///
+/// // Finalize the exception--all too late
+/// drop(result);
+///
+/// // Diagram:
+/// //     |-----------|     in-flight exception 1
+/// //           |---------| exception 2 attempts to unwind across the function holding `result`
+/// ```
+///
+/// ```no_run
+/// use lithium::{intercept, throw};
+///
+/// // This creates an in-flight exception 1
+/// let result1 = intercept::<(), i32>(|| {
+///     // SAFETY: wait for it
+///     unsafe {
+///         throw::<i32>(1);
+///     }
+/// });
+///
+/// // This creates an in-flight exception 2
+/// let result2 = intercept::<(), i32>(|| {
+///     // SAFETY: wait for it
+///     unsafe {
+///         throw::<i32>(2);
+///     }
+/// });
+///
+/// // The exceptions are stacked in order 1, 2, and so must be discarded in the opposite order to
+/// // be nested correctly. But they aren't here:
+/// drop(result1); // This causes UB
+/// drop(result2);
+/// // Had the `drop` calls been swapped, the code would have been valid.
+///
+/// // Diagram:
+/// //     |-----------|     in-flight exception 1
+/// //           |---------| in-flight exception 2 finalized after 1
 /// ```
 ///
 /// # Example
@@ -163,26 +205,25 @@ impl<E> InFlightException<E> {
 /// /// Throws [`Error`].
 /// unsafe fn g() {
 ///     // SAFETY:
-///     // - f only ever throws Error
-///     // - no exception is thrown between `intercept` returning and call to `rethrow`
-///     match intercept::<(), Error>(|| f()) {
+///     // - error type matches
+///     // - we don't touch Lithium between `intercept` and `rethrow`
+///     match intercept::<(), Error>(|| unsafe { f() }) {
 ///         Ok(()) => {},
-///         Err((e, handle)) => handle.rethrow(e.context("in g")),
+///         // SAFETY: `g` is documented as throwing [`Error`]
+///         Err((e, handle)) => unsafe { handle.rethrow(e.context("in g")) },
 ///     }
 /// }
 ///
-/// // SAFETY: g only ever throws Error
-/// println!("{}", unsafe { catch::<_, Error>(|| g()) }.unwrap_err());
+/// // SAFETY: caught by a valid `catch`
+/// println!("{}", catch::<_, Error>(|| unsafe { g() }).unwrap_err());
 /// ```
 #[expect(
     clippy::missing_errors_doc,
     reason = "`Err` value is described immediately"
 )]
 #[inline(always)]
-pub unsafe fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
-    // SAFETY: Requirements forwarded.
-    unsafe { ActiveBackend::intercept(func) }
-        .map_err(|(cause, handle)| (cause, InFlightException(handle)))
+pub fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
+    ActiveBackend::intercept(func).map_err(|(cause, handle)| (cause, InFlightException(handle)))
 }
 
 #[cfg(test)]
@@ -192,13 +233,13 @@ mod test {
 
     #[test]
     fn catch_ok() {
-        let result: Result<String, ()> = unsafe { catch(|| String::from("Hello, world!")) };
+        let result: Result<String, ()> = catch(|| String::from("Hello, world!"));
         assert_eq!(result.unwrap(), "Hello, world!");
     }
 
     #[test]
     fn catch_err() {
-        let result: Result<(), String> = unsafe { catch(|| throw(String::from("Hello, world!"))) };
+        let result: Result<(), String> = catch(|| unsafe { throw(String::from("Hello, world!")) });
         assert_eq!(result.unwrap_err(), "Hello, world!");
     }
 
@@ -214,7 +255,7 @@ mod test {
         let mut destructor_was_run = false;
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _dropper = Dropper(&mut destructor_was_run);
-            let _: Result<(), ()> = unsafe { catch(|| panic!("Hello, world!")) };
+            let _: Result<(), ()> = catch(|| panic!("Hello, world!"));
         }))
         .unwrap_err();
         assert!(destructor_was_run);
@@ -225,13 +266,13 @@ mod test {
 
     #[test]
     fn rethrow() {
-        let result: Result<(), String> = unsafe {
-            catch(|| {
-                let (err, in_flight): (String, _) =
-                    intercept(|| throw(String::from("Hello, world!"))).unwrap_err();
+        let result: Result<(), String> = catch(|| {
+            let (err, in_flight): (String, _) =
+                intercept(|| unsafe { throw(String::from("Hello, world!")) }).unwrap_err();
+            unsafe {
                 in_flight.rethrow(err + " You look nice btw.");
-            })
-        };
+            }
+        });
         assert_eq!(result.unwrap_err(), "Hello, world! You look nice btw.");
     }
 
@@ -241,21 +282,21 @@ mod test {
         impl Drop for Dropper {
             fn drop(&mut self) {
                 let _ = std::panic::catch_unwind(|| {
-                    let (_err, _in_flight): (String, _) = unsafe {
-                        intercept(|| throw(String::from("Literally so insanely suspicious")))
-                    }
+                    let (_err, _in_flight): (String, _) = intercept(|| unsafe {
+                        throw(String::from("Literally so insanely suspicious"))
+                    })
                     .unwrap_err();
                     panic!("Would be a shame if something happened to the exception.");
                 });
             }
         }
 
-        let result: Result<(), String> = unsafe {
-            catch(|| {
-                let _dropper = Dropper;
+        let result: Result<(), String> = catch(|| {
+            let _dropper = Dropper;
+            unsafe {
                 throw(String::from("Hello, world!"));
-            })
-        };
+            }
+        });
         assert_eq!(result.unwrap_err(), "Hello, world!");
     }
 }

@@ -13,6 +13,17 @@
 //! Throw an exception with [`throw`], catch it with [`catch`] or the more low-level [`intercept`].
 //! Unlike with Rust panics, non-[`Send`] and non-`'static` types can be used soundly.
 //!
+//! ```rust
+//! use lithium::{catch, throw};
+//!
+//! // SAFETY: thrown exception immediately caught by a matching `catch`
+//! let err: Result<(), &'static str> = catch(|| unsafe {
+//!     throw::<&'static str>("My exception");
+//! });
+//!
+//! assert_eq!(err.unwrap_err(), "My exception");
+//! ```
+//!
 //! Using the `panic = "abort"` strategy breaks Lithium; avoid doing that.
 //!
 //! For interop, all crates that depend on Lithium need to use the same version:
@@ -27,8 +38,7 @@
 //!
 //! # Platform support
 //!
-//! On stable Rust, Lithium uses the built-in panic mechanism, tweaking it to increase performance
-//! just a little bit.
+//! On stable Rust, Lithium uses the built-in panic mechanism, tweaking it to increase performance.
 //!
 //! On nightly Rust, Lithium uses a custom mechanism on the following targets:
 //!
@@ -52,12 +62,88 @@
 //!
 //! # Safety
 //!
-//! Exceptions lack dynamic typing information. For soundness, the thrown and caught types must
-//! match exactly. Note that the functions are generic, and if the type is inferred wrong, UB will
-//! happen. Use turbofish to avoid this pitfall.
+//! Throwing Lithium exceptions is dangerous in the sense that unwinding through certain safe code
+//! can cause undefined behavior. Therefore, functions that transitively invoke [`throw`] need to be
+//! `unsafe`. The safety restrictions are discharged when the exception is caught, so APIs that
+//! utilize exceptions in an isolated manner remain safe. We call functions that [`throw`], but
+//! don't [`catch`] all thrown exceptions "throwing".
 //!
-//! The matching types requirement only applies to exceptions that aren't caught inside the
-//! [`catch`]/[`intercept`] callback. For example, this is sound:
+//! This section specifies the safety requirements that must be satisfied when calling throwing
+//! functions. As a short-hand to copying these requirements to the doc comments of each throwing
+//! function, write "this function throws a Lithium exception of type `E`" in the safety section.
+//!
+//! The safety requirements are:
+//!
+//! 1. The caller must ensure that the exception is caught by the correct type. Lithium exceptions
+//!    lack dynamic typing information, and using different types at throw and catch sites may lead
+//!    to anything from an implicit `transmute` to instant UB. Consider using turbofish to avoid
+//!    erroneous type inference.
+//! 2. Control flow must not unwind through [`std::panic::catch_unwind`], [`std::thread::spawn`],
+//!    drop glue, or any other non-Lithium function that may interact with unwinding. As these
+//!    functions are safe, you should likely refrain from throwing within callbacks passed to other
+//!    crates.
+//! 3. Control flow must not unwind through a frame that holds an unresolved [`InFlightException`].
+//!    This is only relevant when using [`intercept`]; see its docs for more information.
+//!
+//! These requirements can either be discharged by wrapping the throwing function in a valid
+//! [`catch`] or [`intercept`] invocation, or forwarded by marking the caller as `unsafe` and
+//! documenting it as throwing.
+//!
+//!
+//! # Example
+//!
+//! Multiple throwing functions, with obligations discharged at crate boundary:
+//!
+//! ```rust
+//! use lithium::{catch, throw};
+//!
+//! enum MyCrateError {
+//!     Foo,
+//!     Bar(u32),
+//! }
+//!
+//! /// Do a foo.
+//! ///
+//! /// # Safety
+//! ///
+//! /// Throws Lithium exception `MyCrateError`.
+//! unsafe fn foo(x: u32) -> u32 {
+//!     if x == 0 {
+//!         // SAFETY: `foo` is documented as throwing
+//!         unsafe {
+//!             throw(MyCrateError::Foo);
+//!         }
+//!     }
+//!     x - 1
+//! }
+//!
+//! /// Do a bar.
+//! ///
+//! /// # Safety
+//! ///
+//! /// Throws Lithium exception `MyCrateError`.
+//! unsafe fn bar(x: u32) {
+//!     if x % 100 == 0 {
+//!         // SAFETY: `bar` is documented as throwing
+//!         unsafe {
+//!             throw(MyCrateError::Bar(x % 100));
+//!         }
+//!     }
+//! }
+//!
+//! pub fn foo_bar(x: u32) -> Result<(), MyCrateError> {
+//!     catch(|| {
+//!         // SAFETY: exception is caught via a correctly-typed `catch`
+//!         let tmp = unsafe { foo(x) };
+//!         // SAFETY: exception is caught via a correctly-typed `catch`
+//!         unsafe {
+//!             bar(tmp);
+//!         }
+//!     })
+//! }
+//! ```
+//!
+//! Isolated exceptions:
 //!
 //! ```rust
 //! use lithium::{catch, throw};
@@ -65,23 +151,15 @@
 //! struct A;
 //! struct B;
 //!
-//! unsafe {
-//!     let _ = catch::<(), A>(|| {
-//!         let _ = catch::<(), B>(|| throw(B));
+//! let _ = catch::<(), A>(|| {
+//!     // SAFETY: immediately caught as `B` (most nested `catch` counts)
+//!     let _ = catch::<(), B>(|| unsafe { throw(B) });
+//!     // SAFETY: immediately caught as `A`
+//!     unsafe {
 //!         throw(A);
-//!     });
-//! }
+//!     }
+//! });
 //! ```
-//!
-//! The responsibility of upholding this safety requirement is split between the throwing and the
-//! catching functions. All throwing functions must be `unsafe`, listing "only caught by type `E`"
-//! as a safety requirement. All catching functions that take a user-supplied callback must be
-//! `unsafe` too, listing "callback only throws type `E`" as a safety requirement.
-//!
-//! Although seemingly redundant, this enables safe abstractions over exceptions when both the
-//! throwing and the catching functions are provided by one crate. As long as the exception types
-//! used by the crate match, all safe user-supplied callbacks are sound to call, because safe
-//! callbacks can only interact with exceptions in an isolated manner.
 
 #![no_std]
 #![cfg_attr(thread_local = "attribute", feature(thread_local))]

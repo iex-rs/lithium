@@ -4,6 +4,9 @@ use super::{
 };
 use core::mem::{ManuallyDrop, offset_of};
 
+// Module invariant: thrown exceptions of type `E` are passed to the pointer-throwing backend as
+// instances of `Exception<E>` with the cause filled, which is immediately read out upon catch.
+
 // SAFETY:
 // - The main details are forwarded to the `ThrowByPointer` impl.
 // - We ask the impl not to modify the object, just the header, so the object stays untouched.
@@ -24,13 +27,11 @@ unsafe impl ThrowByValue for ActiveBackend {
     }
 
     #[inline]
-    unsafe fn intercept<Func: FnOnce() -> R, R, E>(
-        func: Func,
-    ) -> Result<R, (E, Self::RethrowHandle<E>)> {
+    fn intercept<Func: FnOnce() -> R, R, E>(func: Func) -> Result<R, (E, Self::RethrowHandle<E>)> {
         <Self as ThrowByPointer>::intercept(func).map_err(|ex| {
-            // SAFETY: By the safety requirement, unwinding could only happen from `throw` with type
-            // `E`. Backend guarantees the pointer is passed as-is, and `throw` only throws unique
-            // pointers to valid instances of `Exception<E>` via the backend.
+            // SAFETY: By the safety requirements of `throw`, unwinding could only happen from
+            // `throw` with type `E`. Backend guarantees the pointer is passed as-is, and `throw`
+            // only throws unique pointers to valid instances of `Exception<E>` via the backend.
             let ex = unsafe { Exception::<E>::from_header(ex) };
             let cause = {
                 // SAFETY: Same as above.
@@ -54,9 +55,10 @@ impl<E> Drop for PointerRethrowHandle<E> {
     fn drop(&mut self) {
         // SAFETY:
         // - `ex` is a unique pointer to the exception object by the type invariant.
-        // - The safety requirement on `intercept` requires that all exceptions that are thrown
-        //   between `intercept` and `drop` are balanced. This exception was at the top of the stack
-        //   when `intercept` returned, so it must still be at the top when `drop` is invoked.
+        // - The safety requirements on throwing functions guarantee that all exceptions that are
+        //   thrown between `intercept` and `drop` are balanced. This exception was at the top of
+        //   the stack when `intercept` returned, so it must still be at the top when `drop` is
+        //   invoked.
         unsafe { pop(self.ex) }
     }
 }

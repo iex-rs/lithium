@@ -25,29 +25,27 @@ fn bench_anyhow(c: &mut Criterion) {
     }
 
     fn lithium() {
-        fn imp(n: u32) {
+        unsafe fn imp(n: u32) {
             let n = black_box(n);
-            unsafe {
-                if n == 0 {
+            if n == 0 {
+                unsafe {
                     throw(anyhow!("Hello, world!"));
-                } else {
-                    match intercept::<(), anyhow::Error>(|| imp(n - 1)) {
-                        Ok(x) => x,
-                        Err((e, in_flight)) => in_flight.rethrow(e.context("In imp")),
-                    }
+                }
+            } else {
+                match intercept::<(), anyhow::Error>(|| unsafe { imp(n - 1) }) {
+                    Ok(x) => x,
+                    Err((e, handle)) => unsafe { handle.rethrow(e.context("In imp")) },
                 }
             }
         }
-        let _ = black_box(unsafe {
-            catch::<(), anyhow::Error>(|| {
-                imp(5);
-            })
-        });
+        let _ = black_box(catch::<(), anyhow::Error>(|| unsafe {
+            imp(5);
+        }));
     }
 
     let mut group = c.benchmark_group("anyhow");
-    group.bench_function("Rust", |b| b.iter(|| rust()));
-    group.bench_function("Lithium", |b| b.iter(|| lithium()));
+    group.bench_function("Rust", |b| b.iter(rust));
+    group.bench_function("Lithium", |b| b.iter(lithium));
     group.finish();
 }
 
@@ -74,29 +72,27 @@ fn bench_simple(c: &mut Criterion) {
     }
 
     fn lithium() {
-        fn imp(n: u32) {
+        unsafe fn imp(n: u32) {
             let n = black_box(n);
-            unsafe {
-                if n == 0 {
+            if n == 0 {
+                unsafe {
                     throw("Hello, world!");
-                } else {
-                    match intercept::<(), &'static str>(|| imp(n - 1)) {
-                        Ok(x) => x,
-                        Err((e, in_flight)) => in_flight.rethrow(black_box(e)), // simulate adding information
-                    }
+                }
+            } else {
+                match intercept::<(), &'static str>(|| unsafe { imp(n - 1) }) {
+                    Ok(x) => x,
+                    Err((e, handle)) => unsafe { handle.rethrow(black_box(e)) }, // simulate adding information
                 }
             }
         }
-        let _ = black_box(unsafe {
-            catch::<(), &'static str>(|| {
-                imp(5);
-            })
-        });
+        let _ = black_box(catch::<(), &'static str>(|| unsafe {
+            imp(5);
+        }));
     }
 
     let mut group = c.benchmark_group("simple");
-    group.bench_function("Rust", |b| b.iter(|| rust()));
-    group.bench_function("Lithium", |b| b.iter(|| lithium()));
+    group.bench_function("Rust", |b| b.iter(rust));
+    group.bench_function("Lithium", |b| b.iter(lithium));
     group.finish();
 }
 
