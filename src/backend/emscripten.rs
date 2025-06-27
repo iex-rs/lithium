@@ -12,7 +12,7 @@ pub(crate) struct ActiveBackend;
 ///
 /// At the moment, the emscripten target doesn't provide a Itanium-compatible ABI, but it does
 /// libcxxabi-style C++ exceptions. This is what we're going to use.
-// SAFETY: C++ exceptions satisfy the requirements.
+// SAFETY: C++ exceptions satisfy the requirements. `__cxa_throw` itself initializes the header.
 unsafe impl ThrowByPointer for ActiveBackend {
     type ExceptionHeader = Header;
 

@@ -33,6 +33,11 @@
 /// with this header. The header is part of a greater allocation containing the exception object,
 /// but interacting with this object is forbidden.
 ///
+/// The implementation may use the header for any purpose during unwinding. `throw` may assume that
+/// the header is either a pristine header returned by `new_header`, or a "used" header returned by
+/// `intercept` that was originally created by another exception. The backend must be able to reuse
+/// such headers correctly, reinitializing them within `throw` if necessary.
+///
 /// # Safety
 ///
 /// Implementations must satisfy the rules of the "Safety" section of [this module](self). In

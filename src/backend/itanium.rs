@@ -9,7 +9,10 @@ pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTIEX\0");
 pub(crate) struct ActiveBackend;
 
 // SAFETY: We use Itanium EH ABI, which supports nested exceptions correctly. We can assume we don't
-// encounter foreign frames, because that's a safety requirement of `throw`.
+// encounter foreign frames, because that's a safety requirement of `throw`. The ABI guarantees that
+// the most of the header fields stay valid after catching because the exception may theoretically
+// be rethrown. No guarantees are explicitly made about `private1`, but it's also preserved in
+// practice; see the comment below.
 unsafe impl ThrowByPointer for ActiveBackend {
     type ExceptionHeader = Header;
 
