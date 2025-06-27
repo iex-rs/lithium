@@ -85,6 +85,7 @@ impl<E> RethrowHandle for PointerRethrowHandle<E> {
 type Header = <ActiveBackend as ThrowByPointer>::ExceptionHeader;
 
 /// An exception object, to be used by the backend.
+#[repr(C)] // ensure `header` is at the same offset regardless of `E`
 pub struct Exception<E> {
     header: Header,
     cause: ManuallyDrop<Unaligned<E>>,
@@ -221,6 +222,17 @@ pub unsafe fn pop<E>(ex: *mut Exception<E>) {
 /// [`push`] or [`replace_last`] with the same exception type. In addition, the old exception must
 /// not be accessed after `replace_last`.
 pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Exception<F> {
+    if const { get_alloc_size::<E>() == get_alloc_size::<F>() } {
+        // Reuse existing allocation without populating the header again
+        let ex: *mut Exception<F> = ex.cast();
+        // SAFETY: If `ex.cause` was valid for writes for `size_of::<E>()` bytes, it should be valid
+        // for `size_of::<F>()` bytes as well because those are equal.
+        unsafe {
+            (*ex).cause = ManuallyDrop::new(Unaligned(cause));
+        }
+        return ex;
+    }
+
     // SAFETY: We don't let the stack leak past the call frame.
     let stack = unsafe { get_stack() };
     let ex: *mut Exception<F> =
