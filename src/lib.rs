@@ -7,6 +7,9 @@
 //! On nightly, Lithium is more than 2x faster than Rust panics on common `Result`-like usecases.
 //! See the [benchmark](https://github.com/iex-rs/lithium/blob/master/benches/bench.rs).
 //!
+//! Lithium is a low-level library that exposes unsafe functions. Please use it responsibly, only if
+//! it improves performance and hidden beneath a safe abstraction.
+//!
 //!
 //! # Usage
 //!
