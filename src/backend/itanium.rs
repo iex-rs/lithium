@@ -29,7 +29,11 @@ unsafe impl ThrowByPointer for ActiveBackend {
             // this is unnecessary for libgcc, and libunwind uses the cross-platform mechanism for
             // ARM too.
             // [1]: https://github.com/ARM-software/abi-aa/blob/76d56124610302e645b66ac4e491be0c1a90ee11/ehabi32/ehabi32.rst#language-independent-unwinding-types-and-functions
-            private1: core::ptr::null(),
+            private1: if cfg!(all(target_arch = "arm", not(target_vendor = "apple"))) {
+                MaybeUninit::new(core::ptr::null())
+            } else {
+                MaybeUninit::uninit()
+            },
             private_rest: MaybeUninit::uninit(),
         }
     }
@@ -97,7 +101,7 @@ pub struct Header {
     class: u64,
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
     // See `new_header` for why this needs to be a separate field.
-    private1: *const (),
+    private1: MaybeUninit<*const ()>,
     private_rest: MaybeUninit<[*const (); get_unwinder_private_word_count() - 1]>,
 }
 
