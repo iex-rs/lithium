@@ -167,21 +167,28 @@
 #![no_std]
 #![cfg_attr(thread_local = "attribute", feature(thread_local))]
 #![cfg_attr(
-    any(backend = "itanium", backend = "seh", backend = "emscripten"),
+    any(
+        backend = "itanium",
+        backend = "seh",
+        backend = "emscripten",
+        backend = "wasm"
+    ),
     expect(
         internal_features,
         reason = "Can't do anything about core::intrinsics::catch_unwind yet",
     )
 )]
 #![cfg_attr(
-    any(backend = "itanium", backend = "seh", backend = "emscripten"),
+    any(
+        backend = "itanium",
+        backend = "seh",
+        backend = "emscripten",
+        backend = "wasm"
+    ),
     feature(core_intrinsics, rustc_attrs)
 )]
 #![cfg_attr(backend = "seh", feature(fn_ptr_trait, std_internals))]
-#![cfg_attr(
-    all(backend = "itanium", target_arch = "wasm32"),
-    feature(wasm_exception_handling_intrinsics)
-)]
+#![cfg_attr(backend = "wasm", feature(wasm_exception_handling_intrinsics))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
     clippy::cargo,
@@ -253,12 +260,27 @@ extern crate alloc;
 mod api;
 mod backend;
 
-#[cfg(any(backend = "itanium", backend = "emscripten", backend = "panic"))]
+#[cfg(any(
+    backend = "itanium",
+    backend = "emscripten",
+    backend = "wasm",
+    backend = "panic"
+))]
 mod heterogeneous_stack;
-#[cfg(any(backend = "itanium", backend = "emscripten", backend = "panic"))]
+#[cfg(any(
+    backend = "itanium",
+    backend = "emscripten",
+    backend = "wasm",
+    backend = "panic"
+))]
 mod stacked_exceptions;
 
-#[cfg(any(backend = "itanium", backend = "seh", backend = "emscripten"))]
+#[cfg(any(
+    backend = "itanium",
+    backend = "seh",
+    backend = "emscripten",
+    backend = "wasm"
+))]
 mod intrinsic;
 
 pub use api::{InFlightException, catch, intercept, throw};
@@ -266,7 +288,12 @@ pub use api::{InFlightException, catch, intercept, throw};
 /// Abort the process with a message.
 ///
 /// If `std` is available, this also outputs a message to stderr before aborting.
-#[cfg(any(backend = "itanium", backend = "seh", backend = "emscripten"))]
+#[cfg(any(
+    backend = "itanium",
+    backend = "seh",
+    backend = "emscripten",
+    backend = "wasm"
+))]
 #[cold]
 #[inline(never)]
 fn abort(message: &str) -> ! {

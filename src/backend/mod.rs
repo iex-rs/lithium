@@ -173,6 +173,10 @@ mod imp;
 #[path = "emscripten.rs"]
 mod imp;
 
+#[cfg(backend = "wasm")]
+#[path = "wasm.rs"]
+mod imp;
+
 #[cfg(backend = "unimplemented")]
 #[path = "unimplemented.rs"]
 mod imp;

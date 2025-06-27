@@ -36,7 +36,7 @@ harness = false
 level = "warn"
 check-cfg = [
 	"cfg(abort, values(\"std\", \"core\"))",
-	"cfg(backend, values(\"itanium\", \"seh\", \"emscripten\", \"panic\", \"unimplemented\"))",
+	"cfg(backend, values(\"itanium\", \"seh\", \"emscripten\", \"wasm\", \"panic\", \"unimplemented\"))",
 	"cfg(thread_local, values(\"std\", \"attribute\", \"unimplemented\"))",
 ]
 

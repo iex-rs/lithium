@@ -42,7 +42,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
     unsafe fn throw(ex: *mut Header) -> ! {
         // SAFETY: We provide a valid exception header.
         unsafe {
-            raise(ex.cast());
+            _Unwind_RaiseException(ex.cast());
         }
     }
 
@@ -81,7 +81,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
             //   If project-ffi-unwind changes the rustc behavior, we might have to update this
             //   code.
             unsafe {
-                raise(ex);
+                _Unwind_RaiseException(ex);
             }
         }
 
@@ -140,8 +140,7 @@ const fn get_unwinder_private_word_count() -> usize {
         target_arch = "sparc64",
         target_arch = "riscv64",
         target_arch = "riscv32",
-        target_arch = "loongarch64",
-        target_arch = "wasm32"
+        target_arch = "loongarch64"
     )) {
         2
     } else {
@@ -160,27 +159,6 @@ unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
     );
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 unsafe extern "C-unwind" {
     fn _Unwind_RaiseException(ex: *mut u8) -> !;
-}
-
-/// Raise an Itanium EH ABI-compatible exception.
-///
-/// # Safety
-///
-/// `ex` must point at a valid instance of `_Unwind_Exception`.
-#[inline]
-unsafe fn raise(ex: *mut u8) -> ! {
-    #[cfg(not(target_arch = "wasm32"))]
-    // SAFETY: Passthrough.
-    unsafe {
-        _Unwind_RaiseException(ex);
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    // SAFETY: Passthrough.
-    unsafe {
-        core::arch::wasm32::throw::<0>(ex);
-    }
 }
