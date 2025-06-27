@@ -27,6 +27,9 @@ impl<AlignAs> Heap<AlignAs> {
         clippy::unused_self,
         reason = "Using a static method is harder in presence of generic parameters"
     )]
+    // rustc fails to automatically inline this on Emscripten, blowing up code size and adding
+    // landing pads because it can't prove `alloc` never panics for specific `n`s.
+    #[inline(always)]
     pub fn alloc(&self, n: usize) -> *mut u8 {
         assert_aligned::<AlignAs>(n);
         assert_ne!(n, 0, "Allocating 0 bytes is invalid");
