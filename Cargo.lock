@@ -202,7 +202,6 @@ dependencies = [
  "criterion",
  "replace_with",
  "rustc_version",
- "typeid",
 ]
 
 [[package]]
@@ -367,12 +366,6 @@ dependencies = [
  "serde",
  "serde_json",
 ]
-
-[[package]]
-name = "typeid"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e13db2e0ccd5e14a544e8a246ba2312cd25223f616442d7f2cb0e3db614236e"
 
 [[package]]
 name = "unicode-ident"
