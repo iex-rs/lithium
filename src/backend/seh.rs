@@ -64,8 +64,9 @@ unsafe impl ThrowByValue for ActiveBackend {
 
         let catch = |ex: *mut u8| {
             // This callback is not allowed to unwind, so we can't rethrow exceptions.
+
+            // Indicates a foreign exception.
             if ex.is_null() {
-                // This is a foreign exception.
                 abort(
                     "Lithium caught a foreign exception. This is unsupported. The process will now terminate.\n",
                 );
@@ -409,7 +410,7 @@ fn throw_std_panic(payload: Box<dyn Any + Send + 'static>) -> ! {
 /// duration of the unwinding procedure.
 #[inline(always)]
 unsafe fn cxx_throw(exception_object: *mut ExceptionHeader, throw_info: *const ThrowInfo) -> ! {
-    // This is a reimplementation of `_CxxThrowException`, with quite a few information hardcoded
+    // This is a reimplementation of `_CxxThrowException`, with quite a few parameters hardcoded
     // and functions calls inlined.
 
     #[expect(clippy::cast_possible_truncation, reason = "This is a constant")]
@@ -424,7 +425,7 @@ unsafe fn cxx_throw(exception_object: *mut ExceptionHeader, throw_info: *const T
         image_base: &raw const __ImageBase,
     };
 
-    // SAFETY: Just an extern call.
+    // SAFETY: `parameters` points to a valid parameter struct with `N_PARAMETERS` elements.
     unsafe {
         RaiseException(
             EH_EXCEPTION_NUMBER,

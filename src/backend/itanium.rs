@@ -110,7 +110,7 @@ const fn get_unwinder_private_word_count() -> usize {
     // The Itanium EH ABI says the structure contains 2 private uint64_t words. Some architectures
     // decided this means "2 private native words". So on some 32-bit architectures this is two
     // 64-bit words, which together with padding amount to 5 native words, and on other
-    // architectures it's two native words. Others are just morons.
+    // architectures it's two native words. Others are just stupid.
     if cfg!(target_arch = "x86") {
         5
     } else if cfg!(any(
