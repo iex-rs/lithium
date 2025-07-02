@@ -113,7 +113,7 @@ jobs:
         run: cargo install cross --git https://github.com/cross-rs/cross
       - name: Test with panic backend (debug)
         run: LITHIUM_BACKEND=panic cross test --target $target
-      - name: Test with Itanium backend (debug)
+      - name: Test with Wasm backend (debug)
         run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=wasm cross test --target $target -Z build-std
       - name: Test with Emscripten backend (debug)
         run: LITHIUM_BACKEND=emscripten cross test --target $target
@@ -122,7 +122,7 @@ jobs:
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cross test --target $target --release
       # XXX: https://github.com/rust-lang/rust/issues/132416
-      # - name: Test with Itanium backend (release)
+      # - name: Test with Wasm backend (release)
       #   run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=wasm cross test --target $target --release -Z build-std
       - name: Test with Emscripten backend (release)
         run: LITHIUM_BACKEND=emscripten cross test --target $target --release
@@ -150,14 +150,14 @@ jobs:
         run: rustup component add rust-src
       - name: Test with panic backend (debug)
         run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target $target
-      - name: Test with Itanium backend (debug)
+      - name: Test with Wasm backend (debug)
         run: LITHIUM_BACKEND=wasm ci/cargo-wasi test --target $target
       - name: Test with std thread locals (debug)
         run: LITHIUM_THREAD_LOCAL=std ci/cargo-wasi test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target $target --release
       # XXX: Upstream bug at https://github.com/rust-lang/rust/issues/132416
-      # - name: Test with Itanium backend (release)
+      # - name: Test with Wasm backend (release)
       #   run: LITHIUM_BACKEND=wasm ci/cargo-wasi test --target $target --release
       # - name: Test with std thread locals (release)
       #   run: LITHIUM_THREAD_LOCAL=std ci/cargo-wasi test --target $target --release
