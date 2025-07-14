@@ -85,9 +85,14 @@ impl<E> RethrowHandle for PointerRethrowHandle<E> {
 type Header = <ActiveBackend as ThrowByPointer>::ExceptionHeader;
 
 /// An exception object, to be used by the backend.
+///
+/// Neither the backend header nor the cause are dropped automatically when `Exception` is dropped.
+/// Use [`Exception::cause`] to extract the cause and drop data owned by the backend header in
+/// [`ActiveBackend::intercept`]. This allows the panic backend to abort in `Drop` when it's
+/// accidentally caught by user code.
 #[repr(C)] // ensure `header` is at the same offset regardless of `E`
 pub struct Exception<E> {
-    header: Header,
+    header: ManuallyDrop<Header>,
     cause: ManuallyDrop<Unaligned<E>>,
 }
 
@@ -98,7 +103,7 @@ impl<E> Exception<E> {
     /// Create a new exception to be thrown.
     fn new(cause: E) -> Self {
         Self {
-            header: ActiveBackend::new_header(),
+            header: ManuallyDrop::new(ActiveBackend::new_header()),
             cause: ManuallyDrop::new(Unaligned(cause)),
         }
     }
@@ -110,7 +115,7 @@ impl<E> Exception<E> {
     /// `ex` must be a unique pointer at an exception object.
     pub const unsafe fn header(ex: *mut Self) -> *mut Header {
         // SAFETY: Required transitively.
-        unsafe { &raw mut (*ex).header }
+        unsafe { &raw mut (*ex).header }.cast()
     }
 
     /// Restore pointer from pointer to header.

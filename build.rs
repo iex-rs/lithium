@@ -48,7 +48,16 @@ fn main() {
         if is_nightly && cfg("target_os") == "emscripten" && !has_cfg("emscripten_wasm_eh") {
             "emscripten"
         } else if is_nightly && cfg("target_arch") == "wasm32" {
-            "wasm"
+            // Catching a foreign Itanium exception from within Rust is (currently) guaranteed to
+            // abort, but the optimizations we use for Wasm cause std to read uninitialized memory
+            // in this case. Make missing `catch` or misplaced `catch_unwind` calls easier to debug
+            // by switching to the more robust, but slower mechanism in debug mode. We can't use
+            // `has_cfg("debug_assertions")` due to https://github.com/rust-lang/cargo/issues/7634.
+            if std::env::var("PROFILE").unwrap_or_default() == "debug" {
+                "itanium"
+            } else {
+                "wasm"
+            }
         } else if is_nightly
             && (has_cfg("unix") || (has_cfg("windows") && cfg("target_env") == "gnu"))
         {

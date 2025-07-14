@@ -189,7 +189,10 @@
     feature(core_intrinsics, rustc_attrs)
 )]
 #![cfg_attr(backend = "seh", feature(fn_ptr_trait, std_internals))]
-#![cfg_attr(backend = "wasm", feature(wasm_exception_handling_intrinsics))]
+#![cfg_attr(
+    any(backend = "wasm", all(backend = "itanium", target_arch = "wasm32")),
+    feature(wasm_exception_handling_intrinsics)
+)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
     clippy::cargo,
@@ -289,7 +292,6 @@ pub use api::{InFlightException, catch, intercept, throw};
 /// Abort the process with a message.
 ///
 /// If `std` is available, this also outputs a message to stderr before aborting.
-#[allow(dead_code, reason = "not used by all backends")]
 #[cold]
 #[inline(never)]
 fn abort(message: &str) -> ! {

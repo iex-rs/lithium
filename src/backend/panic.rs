@@ -1,4 +1,5 @@
 use super::ThrowByPointer;
+use crate::abort;
 use alloc::boxed::Box;
 use core::mem::ManuallyDrop;
 use core::panic::AssertUnwindSafe;
@@ -94,3 +95,11 @@ unsafe impl ThrowByPointer for ActiveBackend {
 
 #[repr(transparent)]
 pub(crate) struct LithiumMarker;
+
+impl Drop for LithiumMarker {
+    fn drop(&mut self) {
+        abort(
+            "A Lithium exception was caught by a non-Lithium catch mechanism. This is undefined behavior. The process will now terminate.\n",
+        );
+    }
+}
