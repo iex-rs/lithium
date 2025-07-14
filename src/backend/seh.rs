@@ -6,6 +6,7 @@ use super::{
     super::{abort, intrinsic::intercept},
     RethrowHandle, ThrowByValue,
 };
+use crate::type_checker::TypeChecker;
 use alloc::boxed::Box;
 use core::any::Any;
 use core::marker::{FnPtr, PhantomData};
@@ -89,12 +90,16 @@ unsafe impl ThrowByValue for ActiveBackend {
 
             // We catch the exception by reference, so the C++ runtime will drop it. Tell our
             // destructor to calm down.
+
+            // SAFETY: This is our exception, so `ex_lithium` at least points at a valid instance of
+            // `ExceptionHeader`. We don't really want to assert that it's `Exception<E>` yet, since
+            // the E might be wrong and we want to guard against that in debug.
+            let header = unsafe { &mut (*ex_lithium).header };
+            header.caught = true;
+            header.type_checker.expect::<E>();
+
             // SAFETY: This is our exception, so `ex_lithium` points at a valid instance of
             // `Exception<E>`.
-            unsafe {
-                (*ex_lithium).header.caught = true;
-            }
-            // SAFETY: As above.
             let cause = unsafe { &mut (*ex_lithium).cause };
             // SAFETY: We only read the cause here, so no double copies.
             CaughtUnwind::LithiumException(unsafe { ManuallyDrop::take(cause) })
@@ -131,6 +136,7 @@ unsafe fn do_throw<E>(cause: E) -> ! {
         header: ExceptionHeader {
             canary: (&raw const THROW_INFO).cast(), // any static will work
             caught: false,
+            type_checker: TypeChecker::new::<E>(),
         },
         cause: ManuallyDrop::new(cause),
     };
@@ -145,6 +151,7 @@ unsafe fn do_throw<E>(cause: E) -> ! {
 struct ExceptionHeader {
     canary: *const (), // From Rust ABI
     caught: bool,
+    type_checker: TypeChecker,
 }
 
 #[repr(C)]
@@ -354,11 +361,15 @@ impl<T: ?Sized> SmallPtr<*const T> {
 }
 
 unsafe extern "system-unwind" {
+    #[allow(
+        improper_ctypes,
+        reason = "false positive that TypeId is not FFI-safe in debug"
+    )]
     fn RaiseException(
         code: u32,
         flags: u32,
         n_parameters: u32,
-        paremeters: *mut ExceptionRecordParameters,
+        parameters: *mut ExceptionRecordParameters,
     ) -> !;
 }
 

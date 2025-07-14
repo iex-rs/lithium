@@ -287,6 +287,8 @@ mod stacked_exceptions;
 ))]
 mod intrinsic;
 
+mod type_checker;
+
 pub use api::{InFlightException, catch, intercept, throw};
 
 /// Abort the process with a message.

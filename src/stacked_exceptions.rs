@@ -2,6 +2,7 @@ use super::{
     backend::{ActiveBackend, RethrowHandle, ThrowByPointer, ThrowByValue},
     heterogeneous_stack::unbounded::Stack,
 };
+use crate::type_checker::TypeChecker;
 use core::mem::{ManuallyDrop, offset_of};
 
 // Module invariant: thrown exceptions of type `E` are passed to the pointer-throwing backend as
@@ -82,7 +83,12 @@ impl<E> RethrowHandle for PointerRethrowHandle<E> {
     }
 }
 
-type Header = <ActiveBackend as ThrowByPointer>::ExceptionHeader;
+type BackendHeader = <ActiveBackend as ThrowByPointer>::ExceptionHeader;
+
+struct Header {
+    backend_header: ManuallyDrop<BackendHeader>,
+    type_checker: TypeChecker,
+}
 
 /// An exception object, to be used by the backend.
 ///
@@ -92,7 +98,7 @@ type Header = <ActiveBackend as ThrowByPointer>::ExceptionHeader;
 /// accidentally caught by user code.
 #[repr(C)] // ensure `header` is at the same offset regardless of `E`
 pub struct Exception<E> {
-    header: ManuallyDrop<Header>,
+    header: Header,
     cause: ManuallyDrop<Unaligned<E>>,
 }
 
@@ -103,7 +109,10 @@ impl<E> Exception<E> {
     /// Create a new exception to be thrown.
     fn new(cause: E) -> Self {
         Self {
-            header: ManuallyDrop::new(ActiveBackend::new_header()),
+            header: Header {
+                backend_header: ManuallyDrop::new(ActiveBackend::new_header()),
+                type_checker: TypeChecker::new::<E>(),
+            },
             cause: ManuallyDrop::new(Unaligned(cause)),
         }
     }
@@ -113,9 +122,9 @@ impl<E> Exception<E> {
     /// # Safety
     ///
     /// `ex` must be a unique pointer at an exception object.
-    pub const unsafe fn header(ex: *mut Self) -> *mut Header {
+    pub const unsafe fn header(ex: *mut Self) -> *mut BackendHeader {
         // SAFETY: Required transitively.
-        unsafe { &raw mut (*ex).header }.cast()
+        unsafe { &raw mut (*ex).header.backend_header }.cast()
     }
 
     /// Restore pointer from pointer to header.
@@ -124,9 +133,9 @@ impl<E> Exception<E> {
     ///
     /// `header` must have been produced by [`Exception::header`], and the corresponding object must
     /// be alive.
-    pub const unsafe fn from_header(header: *mut Header) -> *mut Self {
+    pub const unsafe fn from_header(header: *mut BackendHeader) -> *mut Self {
         // SAFETY: Required transitively.
-        unsafe { header.byte_sub(offset_of!(Self, header)) }.cast()
+        unsafe { header.byte_sub(offset_of!(Self, header.backend_header)) }.cast()
     }
 
     /// Get the cause of the exception.
@@ -136,6 +145,7 @@ impl<E> Exception<E> {
     /// This function returns a bitwise copy of the cause. This means that it can only be called
     /// once on each exception.
     pub unsafe fn cause(&mut self) -> E {
+        self.header.type_checker.expect::<E>();
         // SAFETY: We transitively require that the cause is not read twice.
         unsafe { ManuallyDrop::take(&mut self.cause).0 }
     }
@@ -227,6 +237,10 @@ pub unsafe fn replace_last<E, F>(ex: *mut Exception<E>, cause: F) -> *mut Except
     if const { get_alloc_size::<E>() == get_alloc_size::<F>() } {
         // Reuse existing allocation without populating the header again
         let ex: *mut Exception<F> = ex.cast();
+        // SAFETY: Type checker is stored at the same offset regardless of type.
+        unsafe {
+            (*ex).header.type_checker = TypeChecker::new::<F>();
+        }
         // SAFETY: If `ex.cause` was valid for writes for `size_of::<E>()` bytes, it should be valid
         // for `size_of::<F>()` bytes as well because those are equal.
         unsafe {
