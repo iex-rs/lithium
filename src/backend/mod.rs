@@ -55,9 +55,9 @@
 pub unsafe trait ThrowByPointer {
     /// An exception header.
     ///
-    /// Allocated exceptions, as stored in the [`Exception`](super::exceptions::Exception) type,
-    /// will contain this header. This allows exception pointers to be used with ABIs that require
-    /// exceptions to contain custom information, like Itanium EH ABI.
+    /// Allocated exceptions, as stored in the [`Exception`](super::stacked_exceptions::Exception)
+    /// type, will contain this header. This allows exception pointers to be used with ABIs that
+    /// require exceptions to contain custom information, like Itanium EH ABI.
     type ExceptionHeader;
 
     /// Create a new exception header.
