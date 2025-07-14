@@ -20,6 +20,11 @@ fn main() {
     let ac = autocfg::new();
     let is_nightly = version_meta().unwrap().channel == Channel::Nightly;
 
+    // `ac.probe_raw` calls need to be very careful here: under certain configurations, like
+    // `cargo clippy -- -D warnings`, warnigns in the tested snippets can cause probing to give
+    // false negatives. It's important to make sure that, for example, there's no unused items or
+    // variables. See https://github.com/cuviper/autocfg/issues/41.
+
     println!("cargo::rerun-if-env-changed=LITHIUM_THREAD_LOCAL");
     if let Ok(thread_local) = std::env::var("LITHIUM_THREAD_LOCAL") {
         println!("cargo::rustc-cfg=thread_local=\"{thread_local}\"");
@@ -31,7 +36,7 @@ fn main() {
         #![no_std]
         extern crate std;
         std::thread_local! {
-            static FOO: () = ();
+            static FOO: () = const {};
         }
     ",
         )
@@ -59,7 +64,7 @@ fn main() {
             r"
         #![no_std]
         extern crate std;
-        use std::panic::{catch_unwind, resume_unwind};
+        pub use std::panic::{catch_unwind, resume_unwind};
         ",
         )
         .is_ok()
@@ -75,7 +80,7 @@ fn main() {
         #![no_std]
         extern crate std;
         use std::io::Write;
-        fn main() {
+        pub fn main() {
             let _ = std::io::stderr().write_all(b"hello");
             std::process::abort();
         }
