@@ -57,10 +57,11 @@
 //! Lithium strives to support all targets that Rust panics support. If Lithium does not work
 //! correctly on such a target, please [open an issue](https://github.com/iex-rs/lithium/issues/).
 //!
-//! On nightly, Lithium can work without `std` on certain platforms that expose native thread
-//! locals and link in an Itanium-style unwinder. Such situations are best handled on a case-by-case
-//! basis: [open an issue](https://github.com/iex-rs/lithium/issues/) if you would like to see
-//! support for a certain `std`-less target.
+//! On nightly exclusively, Lithium can work without `std` on certain platforms that expose native
+//! thread locals and link in an Itanium-style unwinder, such as `x86_64-unknown-linux-gnu`. Such
+//! situations are best handled on a case-by-case basis:
+//! [open an issue](https://github.com/iex-rs/lithium/issues/) if you would like to see support for
+//! a certain `std`-less target.
 //!
 //!
 //! # Safety
@@ -288,12 +289,7 @@ pub use api::{InFlightException, catch, intercept, throw};
 /// Abort the process with a message.
 ///
 /// If `std` is available, this also outputs a message to stderr before aborting.
-#[cfg(any(
-    backend = "itanium",
-    backend = "seh",
-    backend = "emscripten",
-    backend = "wasm"
-))]
+#[allow(dead_code, reason = "not used by all backends")]
 #[cold]
 #[inline(never)]
 fn abort(message: &str) -> ! {
@@ -304,9 +300,8 @@ fn abort(message: &str) -> ! {
         std::process::abort();
     }
 
-    // This is a nightly-only method, but all three backends this is enabled under require nightly
-    // anyway, so this is no big deal.
-    #[cfg(not(abort = "std"))]
+    // This is a nightly-only method, but build.rs sets `abort = "std"` for stable backends.
+    #[cfg(abort = "core")]
     {
         let _ = message;
         core::intrinsics::abort();

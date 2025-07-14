@@ -8,6 +8,14 @@ fn cfg(name: &str) -> String {
     std::env::var(format!("CARGO_CFG_{}", name.to_uppercase())).unwrap_or_default()
 }
 
+fn make_overridable_cfg(name: &str, logic: impl FnOnce() -> &'static str) -> String {
+    let env_name = format!("LITHIUM_{}", name.to_uppercase());
+    println!("cargo::rerun-if-env-changed={env_name}");
+    let value = std::env::var(env_name).unwrap_or_else(|_| logic().to_string());
+    println!("cargo::rustc-cfg={name}=\"{value}\"");
+    value
+}
+
 fn main() {
     println!("cargo::rerun-if-env-changed=MIRIFLAGS");
     let is_miri = has_cfg("miri");
@@ -17,66 +25,49 @@ fn main() {
         println!("cargo::rustc-cfg=feature=\"sound-under-stacked-borrows\"");
     }
 
-    let ac = autocfg::new();
     let is_nightly = version_meta().unwrap().channel == Channel::Nightly;
 
-    // `ac.probe_raw` calls need to be very careful here: under certain configurations, like
-    // `cargo clippy -- -D warnings`, warnigns in the tested snippets can cause probing to give
-    // false negatives. It's important to make sure that, for example, there's no unused items or
-    // variables. See https://github.com/cuviper/autocfg/issues/41.
+    // We've previously used `autocfg` to check if `std` is available, and emitted errors when
+    // compiling without `std` on stable. But that didn't work well: when std is available due to
+    // `-Z build-std`, autocfg doesn't notice it [1], so the tests within this build script would
+    // fail even though using `std` from within the crate would work. So instead, we just assume
+    // that `std` is present if nothing else works -- that leads to worse diagnostics in the failure
+    // case, but makes the common one actually work.
+    //
+    // [1]: https://github.com/cuviper/autocfg/issues/34
 
-    println!("cargo::rerun-if-env-changed=LITHIUM_THREAD_LOCAL");
-    if let Ok(thread_local) = std::env::var("LITHIUM_THREAD_LOCAL") {
-        println!("cargo::rustc-cfg=thread_local=\"{thread_local}\"");
-    } else if is_nightly && has_cfg("target_thread_local") {
-        println!("cargo::rustc-cfg=thread_local=\"attribute\"");
-    } else if ac
-        .probe_raw(
-            r"
-        #![no_std]
-        extern crate std;
-        std::thread_local! {
-            static FOO: () = const {};
+    make_overridable_cfg("thread_local", || {
+        if is_nightly && has_cfg("target_thread_local") {
+            "attribute"
+        } else {
+            "std"
         }
-    ",
-        )
-        .is_ok()
-    {
-        println!("cargo::rustc-cfg=thread_local=\"std\"");
-    } else {
-        println!("cargo::rustc-cfg=thread_local=\"unimplemented\"");
-    }
+    });
 
-    println!("cargo::rerun-if-env-changed=LITHIUM_BACKEND");
-    if let Ok(backend) = std::env::var("LITHIUM_BACKEND") {
-        println!("cargo::rustc-cfg=backend=\"{backend}\"");
-    } else if is_nightly && cfg("target_os") == "emscripten" && !has_cfg("emscripten_wasm_eh") {
-        println!("cargo::rustc-cfg=backend=\"emscripten\"");
-    } else if is_nightly && cfg("target_arch") == "wasm32" {
-        println!("cargo::rustc-cfg=backend=\"wasm\"");
-    } else if is_nightly && (has_cfg("unix") || (has_cfg("windows") && cfg("target_env") == "gnu"))
-    {
-        println!("cargo::rustc-cfg=backend=\"itanium\"");
-    } else if is_nightly && (has_cfg("windows") && cfg("target_env") == "msvc") && !is_miri {
-        println!("cargo::rustc-cfg=backend=\"seh\"");
-    } else if ac
-        .probe_raw(
-            r"
-        #![no_std]
-        extern crate std;
-        pub use std::panic::{catch_unwind, resume_unwind};
-        ",
-        )
-        .is_ok()
-    {
-        println!("cargo::rustc-cfg=backend=\"panic\"");
-    } else {
-        println!("cargo::rustc-cfg=backend=\"unimplemented\"");
-    }
+    let backend = make_overridable_cfg("backend", || {
+        if is_nightly && cfg("target_os") == "emscripten" && !has_cfg("emscripten_wasm_eh") {
+            "emscripten"
+        } else if is_nightly && cfg("target_arch") == "wasm32" {
+            "wasm"
+        } else if is_nightly
+            && (has_cfg("unix") || (has_cfg("windows") && cfg("target_env") == "gnu"))
+        {
+            "itanium"
+        } else if is_nightly && has_cfg("windows") && cfg("target_env") == "msvc" && !is_miri {
+            "seh"
+        } else {
+            "panic"
+        }
+    });
 
-    if ac
-        .probe_raw(
-            r#"
+    // Since the panic backend can use `abort` and is available on stable, we need to set
+    // `abort = "std"` whenever the panic backend is used, even if we don't readily know if `std` is
+    // available. But that's fine, since the panic backend requires `std` anyway.
+    let ac = autocfg::new();
+    if backend == "panic"
+        || ac
+            .probe_raw(
+                r#"
         #![no_std]
         extern crate std;
         use std::io::Write;
@@ -85,8 +76,8 @@ fn main() {
             std::process::abort();
         }
     "#,
-        )
-        .is_ok()
+            )
+            .is_ok()
     {
         println!("cargo::rustc-cfg=abort=\"std\"");
     } else {

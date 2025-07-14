@@ -165,9 +165,6 @@ unsafe fn get_stack() -> &'static Stack<Header> {
     // SAFETY: We require the caller to not use the reference anywhere near the end of the thread,
     // so if `&STACK` is sound in the first place, there is no problem.
     return unsafe { core::mem::transmute::<&Stack<Header>, &'static Stack<Header>>(&STACK) };
-
-    #[cfg(thread_local = "unimplemented")]
-    compile_error!("Unable to compile Lithium on a platform does not support thread locals")
 }
 
 const fn get_alloc_size<E>() -> usize {

@@ -177,10 +177,6 @@ mod imp;
 #[path = "wasm.rs"]
 mod imp;
 
-#[cfg(backend = "unimplemented")]
-#[path = "unimplemented.rs"]
-mod imp;
-
 pub(crate) use imp::ActiveBackend;
 
 #[cfg(test)]
