@@ -102,11 +102,11 @@ pub struct Header {
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
     // See `new_header` for why this needs to be a separate field.
     private1: MaybeUninit<*const ()>,
-    private_rest: MaybeUninit<[*const (); get_unwinder_private_word_count() - 1]>,
+    private_rest: MaybeUninit<[*const (); UNWINDER_PRIVATE_WORD_COUNT - 1]>,
 }
 
 // Data from https://github.com/rust-lang/rust/blob/master/library/unwind/src/libunwind.rs
-const fn get_unwinder_private_word_count() -> usize {
+const UNWINDER_PRIVATE_WORD_COUNT: usize = {
     // The Itanium EH ABI says the structure contains 2 private uint64_t words. Some architectures
     // decided this means "2 private native words". So on some 32-bit architectures this is two
     // 64-bit words, which together with padding amount to 5 native words, and on other
@@ -147,7 +147,7 @@ const fn get_unwinder_private_word_count() -> usize {
     } else {
         panic!("Unsupported architecture");
     }
-}
+};
 
 /// Destruct an exception when caught by a foreign runtime.
 ///
