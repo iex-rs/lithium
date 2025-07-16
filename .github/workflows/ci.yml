@@ -374,8 +374,6 @@ jobs:
   valgrind:
     timeout-minutes: 5
     runs-on: ubuntu-latest
-    env:
-      VALGRINDFLAGS: --suppressions=valgrind.supp
     if: success() || failure()
     steps:
       - name: Checkout
