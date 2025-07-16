@@ -1,4 +1,5 @@
 use super::backend::{ActiveBackend, RethrowHandle, ThrowByValue};
+use core::marker::PhantomData;
 
 /// Throw an exception.
 ///
@@ -73,7 +74,14 @@ pub fn catch<R, E>(func: impl FnOnce() -> R) -> Result<R, E> {
 /// At this point, you can either drop the handle, which halts the Lithium machinery and brings you
 /// back to the sane land of [`Result`], or call [`InFlightException::rethrow`] to piggy-back on the
 /// contexts of the caught exception.
-pub struct InFlightException<E>(<ActiveBackend as ThrowByValue>::RethrowHandle<E>);
+pub struct InFlightException<E> {
+    handle: <ActiveBackend as ThrowByValue>::RethrowHandle<E>,
+    // Variance doesn't *really* matter here, since methods on `InFlightException<E>` never really
+    // touch objects of type `E`, but making this type predictably invariant over `E` is valuable
+    // for consistency, as it's difficult to keep track of which variance of the associated type is
+    // exposed by which backend.
+    _phantom: PhantomData<*mut E>,
+}
 
 impl<E> InFlightException<E> {
     /// Throw a new exception by reusing the existing context.
@@ -89,7 +97,7 @@ impl<E> InFlightException<E> {
     pub unsafe fn rethrow<F>(self, new_cause: F) -> ! {
         // SAFETY: Requirements forwarded.
         unsafe {
-            self.0.rethrow(new_cause);
+            self.handle.rethrow(new_cause);
         }
     }
 }
@@ -223,7 +231,15 @@ impl<E> InFlightException<E> {
 )]
 #[inline(always)]
 pub fn intercept<R, E>(func: impl FnOnce() -> R) -> Result<R, (E, InFlightException<E>)> {
-    ActiveBackend::intercept(func).map_err(|(cause, handle)| (cause, InFlightException(handle)))
+    ActiveBackend::intercept(func).map_err(|(cause, handle)| {
+        (
+            cause,
+            InFlightException {
+                handle,
+                _phantom: PhantomData,
+            },
+        )
+    })
 }
 
 #[cfg(test)]
