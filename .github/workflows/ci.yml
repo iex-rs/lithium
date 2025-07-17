@@ -230,13 +230,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      # XXX: https://github.com/actions/partner-runner-images/issues/77#issuecomment-2816803368
-      - name: Install rustup on Windows ARM
-        if: matrix.machine.os == 'windows-11-arm'
-        run: |
-          curl -LOs https://static.rust-lang.org/rustup/dist/aarch64-pc-windows-msvc/rustup-init.exe
-          ./rustup-init.exe -y --default-toolchain none --no-modify-path
-          echo "$USERPROFILE/.cargo/bin" >> "$GITHUB_PATH"
       - name: Set default-host
         run: rustup set default-host $host
       - name: Install Rust
