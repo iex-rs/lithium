@@ -123,11 +123,10 @@ jobs:
         run: LITHIUM_THREAD_LOCAL=std cross test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cross test --target $target --release
-      # XXX: https://github.com/rust-lang/rust/issues/132416
-      # - name: Test with Wasm backend (release)
-      #   run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=wasm cross test --target $target --release -Z build-std
-      # - name: Test with Itanium backend (release)
-      #   run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target --release -Z build-std
+      - name: Test with Wasm backend (release)
+        run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=wasm cross test --target $target --release -Z build-std
+      - name: Test with Itanium backend (release)
+        run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target --release -Z build-std
       - name: Test with Emscripten backend (release)
         run: LITHIUM_BACKEND=emscripten cross test --target $target --release
       - name: Test with std thread locals (release)
@@ -162,13 +161,12 @@ jobs:
         run: LITHIUM_THREAD_LOCAL=std ci/cargo-wasi test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic ci/cargo-wasi test --target $target --release
-      # XXX: Upstream bug at https://github.com/rust-lang/rust/issues/132416
-      # - name: Test with Wasm backend (release)
-      #   run: LITHIUM_BACKEND=wasm ci/cargo-wasi test --target $target --release
-      # - name: Test with Itanium backend (release)
-      #   run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target $target --release
-      # - name: Test with std thread locals (release)
-      #   run: LITHIUM_THREAD_LOCAL=std ci/cargo-wasi test --target $target --release
+      - name: Test with Wasm backend (release)
+        run: LITHIUM_BACKEND=wasm ci/cargo-wasi test --target $target --release
+      - name: Test with Itanium backend (release)
+        run: LITHIUM_BACKEND=itanium ci/cargo-wasi test --target $target --release
+      - name: Test with std thread locals (release)
+        run: LITHIUM_THREAD_LOCAL=std ci/cargo-wasi test --target $target --release
 
   darwin:
     timeout-minutes: 5
