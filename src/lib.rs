@@ -237,7 +237,6 @@
     clippy::std_instead_of_alloc,
     clippy::std_instead_of_core,
     clippy::string_lit_chars_any,
-    clippy::string_to_string,
     clippy::tests_outside_test_module,
     clippy::try_err,
     clippy::undocumented_unsafe_blocks,
