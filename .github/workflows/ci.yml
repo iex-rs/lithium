@@ -204,9 +204,9 @@ jobs:
       fail-fast: false
       matrix:
         machine:
-          - os: windows-latest
+          - os: windows-2025
             arch: x86_64
-          - os: windows-latest
+          - os: windows-2025
             arch: i686
           - os: windows-11-arm
             arch: aarch64
