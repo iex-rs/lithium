@@ -160,8 +160,12 @@ unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
     );
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 unsafe extern "C-unwind" {
+    #[cfg(target_arch = "wasm32")]
+    #[link_name = "llvm.wasm.throw"]
+    fn wasm_throw(tag: i32, ex: *mut u8) -> !;
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn _Unwind_RaiseException(ex: *mut u8) -> !;
 }
 
@@ -183,6 +187,6 @@ unsafe fn raise(ex: *mut u8) -> ! {
     #[cfg(target_arch = "wasm32")]
     // SAFETY: Passthrough.
     unsafe {
-        core::arch::wasm32::throw::<0>(ex);
+        wasm_throw(0, ex);
     }
 }

@@ -18,7 +18,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
     unsafe fn throw(ex: *mut Header) -> ! {
         // SAFETY: Wasm has no unwinder, so the pointer reaches `intercept` as-is.
         unsafe {
-            core::arch::wasm32::throw::<0>(ex.cast::<u8>().wrapping_add(1));
+            wasm_throw(0, ex.cast::<u8>().wrapping_add(1));
         }
     }
 
@@ -34,7 +34,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
             // safe because it's indistinguishable from not catching it in the first place due to
             // Wasm EH being performed by the VM.
             unsafe {
-                core::arch::wasm32::throw::<0>(ex);
+                wasm_throw(0, ex.cast());
             }
         }
 
@@ -43,6 +43,11 @@ unsafe impl ThrowByPointer for ActiveBackend {
         // unaligned, it's necessarily our exception.
         Err(ex.wrapping_sub(1).cast())
     }
+}
+
+unsafe extern "C-unwind" {
+    #[link_name = "llvm.wasm.throw"]
+    fn wasm_throw(tag: i32, ex: *mut u8) -> !;
 }
 
 #[repr(C, align(2))]
