@@ -42,13 +42,13 @@ unsafe impl ThrowByPointer for ActiveBackend {
     #[inline(always)]
     fn intercept<Func: FnOnce() -> R, R>(func: Func) -> Result<R, *mut Header> {
         let ptr = match intercept(func, |ex| {
-            // SAFETY: `core::intrinsics::catch_unwind` provides a pointer to a stack-allocated
-            // instance of `CatchData`. It needs to be read inside the `intercept` callback because
-            // it'll be dead by the moment `intercept` returns.
             #[expect(
                 clippy::cast_ptr_alignment,
                 reason = "guaranteed to be aligned by rustc"
             )]
+            // SAFETY: `core::intrinsics::catch_unwind` provides a pointer to a stack-allocated
+            // instance of `CatchData`. It needs to be read inside the `intercept` callback because
+            // it'll be dead by the moment `intercept` returns.
             unsafe {
                 (*ex.cast::<CatchData>()).ptr
             }
