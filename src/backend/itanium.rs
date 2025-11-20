@@ -42,7 +42,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
     unsafe fn throw(ex: *mut Header) -> ! {
         // SAFETY: We provide a valid exception header.
         unsafe {
-            raise(ex.cast());
+            _Unwind_RaiseException(ex.cast());
         }
     }
 
@@ -81,7 +81,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
             //   If project-ffi-unwind changes the rustc behavior, we might have to update this
             //   code.
             unsafe {
-                raise(ex);
+                _Unwind_RaiseException(ex);
             }
         }
 
@@ -160,33 +160,30 @@ unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
     );
 }
 
-unsafe extern "C-unwind" {
-    #[cfg(target_arch = "wasm32")]
-    #[link_name = "llvm.wasm.throw"]
-    fn wasm_throw(tag: i32, ex: *mut u8) -> !;
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn _Unwind_RaiseException(ex: *mut u8) -> !;
-}
-
+// Although Wasm has its own backend, it has worse debug experience than Itanium can offer, so we
+// teach this backend how to handle Wasm as well.
+#[cfg(target_arch = "wasm32")]
 /// Raise an Itanium EH ABI-compatible exception.
 ///
 /// # Safety
 ///
 /// `ex` must point at a valid instance of `_Unwind_Exception`.
-#[inline]
-unsafe fn raise(ex: *mut u8) -> ! {
-    #[cfg(not(target_arch = "wasm32"))]
-    // SAFETY: Passthrough.
+unsafe fn _Unwind_RaiseException(ex: *mut u8) -> ! {
+    // SAFETY: Directly throws the exception.
     unsafe {
-        _Unwind_RaiseException(ex);
+        core::arch::asm!(
+            ".tagtype __cpp_exception i32",
+            ".globl __cpp_exception",
+            ".weak __cpp_exception",
+            "local.get {ex}",
+            "throw __cpp_exception",
+            ex = in(local) ex,
+            options(may_unwind, noreturn, nostack),
+        );
     }
+}
 
-    // Although Wasm has its own backend, it has worse debug experience than Itanium can offer, so
-    // we teach this backend how to handle Wasm as well.
-    #[cfg(target_arch = "wasm32")]
-    // SAFETY: Passthrough.
-    unsafe {
-        wasm_throw(0, ex);
-    }
+#[cfg(not(target_arch = "wasm32"))]
+unsafe extern "C-unwind" {
+    fn _Unwind_RaiseException(ex: *mut u8) -> !;
 }

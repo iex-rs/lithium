@@ -191,7 +191,7 @@
 #![cfg_attr(backend = "seh", feature(fn_ptr_trait, std_internals))]
 #![cfg_attr(
     any(backend = "wasm", all(backend = "itanium", target_arch = "wasm32")),
-    feature(link_llvm_intrinsics)
+    feature(asm_experimental_arch, asm_unwind)
 )]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
