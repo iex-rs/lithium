@@ -55,8 +55,8 @@ unsafe fn throw(ex: *mut u8) -> ! {
     unsafe {
         core::arch::asm!(
             ".tagtype __cpp_exception i32",
-            ".globl __cpp_exception",
-            ".weak __cpp_exception",
+            ".globl ___cpp_exception",
+            ".weak ___cpp_exception",
             "local.get {ex}",
             "throw __cpp_exception",
             ex = in(local) ex,
