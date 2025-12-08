@@ -114,21 +114,21 @@ jobs:
       - name: Test with panic backend (debug)
         run: LITHIUM_BACKEND=panic cross test --target $target
       - name: Test with Wasm backend (debug)
-        run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=wasm cross test --target $target -Z build-std
+        run: LITHIUM_BACKEND=wasm cross test --target $target
       - name: Test with Itanium backend (debug)
-        run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target -Z build-std
+        run: LITHIUM_BACKEND=itanium cross test --target $target
       - name: Test with Emscripten backend (debug)
-        run: LITHIUM_BACKEND=emscripten cross test --target $target
+        run: RUSTFLAGS="-Z emscripten-wasm-eh=false" RUSTDOCFLAGS="-Z emscripten-wasm-eh=false" LITHIUM_BACKEND=emscripten cross test --target $target -Z build-std
       - name: Test with std thread locals (debug)
         run: LITHIUM_THREAD_LOCAL=std cross test --target $target
       - name: Test with panic backend (release)
         run: LITHIUM_BACKEND=panic cross test --target $target --release
       - name: Test with Wasm backend (release)
-        run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=wasm cross test --target $target --release -Z build-std
+        run: LITHIUM_BACKEND=wasm cross test --target $target --release
       - name: Test with Itanium backend (release)
-        run: RUSTFLAGS="-Z emscripten_wasm_eh" RUSTDOCFLAGS="-Z emscripten_wasm_eh" LITHIUM_BACKEND=itanium cross test --target $target --release -Z build-std
+        run: LITHIUM_BACKEND=itanium cross test --target $target --release
       - name: Test with Emscripten backend (release)
-        run: LITHIUM_BACKEND=emscripten cross test --target $target --release
+        run: RUSTFLAGS="-Z emscripten-wasm-eh=false" RUSTDOCFLAGS="-Z emscripten-wasm-eh=false" LITHIUM_BACKEND=emscripten cross test --target $target --release -Z build-std
       - name: Test with std thread locals (release)
         run: LITHIUM_THREAD_LOCAL=std cross test --target $target --release
 
