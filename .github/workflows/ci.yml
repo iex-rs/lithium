@@ -27,7 +27,7 @@ jobs:
       target: ${{ matrix.machine.arch }}-unknown-linux-${{ matrix.libc }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Add target
@@ -80,7 +80,7 @@ jobs:
       target: ${{ matrix.target }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Install Cross
@@ -106,7 +106,7 @@ jobs:
       target: wasm32-unknown-emscripten
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Install Cross
@@ -140,7 +140,7 @@ jobs:
       target: wasm32-wasip1
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install NodeJS
         uses: actions/setup-node@v4
         with:
@@ -180,7 +180,7 @@ jobs:
           - macos-15  # aarch64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Test with panic backend (debug)
@@ -229,7 +229,7 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set default-host
         run: rustup set default-host $host
       - name: Install Rust
@@ -317,7 +317,7 @@ jobs:
     container: debian:trixie-slim
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install wine
         run: |
           set -exuo pipefail
@@ -348,7 +348,7 @@ jobs:
       target: ${{ matrix.target }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Install Miri
@@ -368,7 +368,7 @@ jobs:
     if: success() || failure()
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Install cargo valgrind
@@ -392,7 +392,7 @@ jobs:
     if: success() || failure()
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         run: rustup update stable && rustup default stable
       - name: Test with panic backend (debug)
@@ -413,7 +413,7 @@ jobs:
       LITHIUM_THREAD_LOCAL: ${{ matrix.thread_local }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: Install rustfmt and clippy
