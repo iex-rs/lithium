@@ -36,14 +36,6 @@ fn main() {
     //
     // [1]: https://github.com/cuviper/autocfg/issues/34
 
-    make_overridable_cfg("thread_local", || {
-        if is_nightly && has_cfg("target_thread_local") {
-            "attribute"
-        } else {
-            "std"
-        }
-    });
-
     let backend = make_overridable_cfg("backend", || {
         if is_nightly && cfg("target_os") == "emscripten" && !has_cfg("emscripten_wasm_eh") {
             "emscripten"
@@ -68,6 +60,16 @@ fn main() {
             "panic"
         }
     });
+
+    if backend != "seh" {
+        make_overridable_cfg("thread_local", || {
+            if is_nightly && has_cfg("target_thread_local") {
+                "attribute"
+            } else {
+                "std"
+            }
+        });
+    }
 
     // Since the panic backend can use `abort` and is available on stable, we need to set
     // `abort = "std"` whenever the panic backend is used, even if we don't readily know if `std` is
