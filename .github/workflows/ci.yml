@@ -142,7 +142,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Install NodeJS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
       - name: Install Rust
@@ -268,7 +268,7 @@ jobs:
         if: matrix.abi == 'msvc' || matrix.abi == 'gnullvm'
         run: LITHIUM_THREAD_LOCAL=std ci/cargo-save "Test with std thread locals (release)" test --target $target --release
       - name: Upload built tests for Wine
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tests-${{ env.target }}
           path: saved-jobs
@@ -326,7 +326,7 @@ jobs:
           apt-get -y install wine:${{ matrix.machine.ubuntu_arch }}
           wineboot
       - name: Download built tests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: tests-${{ env.target }}
           path: saved-jobs
