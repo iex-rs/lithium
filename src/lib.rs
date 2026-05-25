@@ -50,8 +50,7 @@
 //! |Linux, macOS       |Itanium EH ABI |2.5x faster than panics                      |
 //! |Windows (MSVC ABI) |SEH            |1.5x faster than panics                      |
 //! |Windows (GNU ABI)  |Itanium EH ABI |2.5x faster than panics, but slower than MSVC|
-//! |Emscripten (old EH)|C++ exceptions |2x faster than panics                        |
-//! |Emscripten (new EH)|Wasm exceptions|2.5x faster than panics, faster than old EH  |
+//! |Emscripten         |Wasm exceptions|2.5x faster than panics                      |
 //! |WASI               |Wasm exceptions|3x faster than panics                        |
 //!
 //! Lithium strives to support all targets that Rust panics support. If Lithium does not work
@@ -168,24 +167,14 @@
 #![no_std]
 #![cfg_attr(thread_local = "attribute", feature(thread_local))]
 #![cfg_attr(
-    any(
-        backend = "itanium",
-        backend = "seh",
-        backend = "emscripten",
-        backend = "wasm"
-    ),
+    any(backend = "itanium", backend = "seh", backend = "wasm"),
     expect(
         internal_features,
         reason = "Can't do anything about core::intrinsics::catch_unwind yet",
     )
 )]
 #![cfg_attr(
-    any(
-        backend = "itanium",
-        backend = "seh",
-        backend = "emscripten",
-        backend = "wasm"
-    ),
+    any(backend = "itanium", backend = "seh", backend = "wasm"),
     feature(core_intrinsics, rustc_attrs)
 )]
 #![cfg_attr(backend = "seh", feature(fn_ptr_trait, std_internals))]
@@ -263,27 +252,12 @@ extern crate alloc;
 mod api;
 mod backend;
 
-#[cfg(any(
-    backend = "itanium",
-    backend = "emscripten",
-    backend = "wasm",
-    backend = "panic"
-))]
+#[cfg(any(backend = "itanium", backend = "wasm", backend = "panic"))]
 mod heterogeneous_stack;
-#[cfg(any(
-    backend = "itanium",
-    backend = "emscripten",
-    backend = "wasm",
-    backend = "panic"
-))]
+#[cfg(any(backend = "itanium", backend = "wasm", backend = "panic"))]
 mod stacked_exceptions;
 
-#[cfg(any(
-    backend = "itanium",
-    backend = "seh",
-    backend = "emscripten",
-    backend = "wasm"
-))]
+#[cfg(any(backend = "itanium", backend = "seh", backend = "wasm"))]
 mod intrinsic;
 
 mod type_checker;

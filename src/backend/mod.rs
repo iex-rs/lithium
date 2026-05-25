@@ -169,10 +169,6 @@ mod imp;
 #[path = "panic.rs"]
 mod imp;
 
-#[cfg(backend = "emscripten")]
-#[path = "emscripten.rs"]
-mod imp;
-
 #[cfg(backend = "wasm")]
 #[path = "wasm.rs"]
 mod imp;

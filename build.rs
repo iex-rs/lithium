@@ -37,9 +37,7 @@ fn main() {
     // [1]: https://github.com/cuviper/autocfg/issues/34
 
     let backend = make_overridable_cfg("backend", || {
-        if is_nightly && cfg("target_os") == "emscripten" && !has_cfg("emscripten_wasm_eh") {
-            "emscripten"
-        } else if is_nightly && cfg("target_arch") == "wasm32" {
+        if is_nightly && cfg("target_arch") == "wasm32" {
             // Catching a foreign Itanium exception from within Rust is (currently) guaranteed to
             // abort, but the optimizations we use for Wasm cause std to read uninitialized memory
             // in this case. Make missing `catch` or misplaced `catch_unwind` calls easier to debug

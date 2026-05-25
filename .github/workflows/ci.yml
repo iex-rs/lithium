@@ -117,8 +117,6 @@ jobs:
         run: LITHIUM_BACKEND=wasm cross test --target $target
       - name: Test with Itanium backend (debug)
         run: LITHIUM_BACKEND=itanium cross test --target $target
-      - name: Test with Emscripten backend (debug)
-        run: RUSTFLAGS="-Z emscripten-wasm-eh=false" RUSTDOCFLAGS="-Z emscripten-wasm-eh=false" LITHIUM_BACKEND=emscripten cross test --target $target -Z build-std
       - name: Test with std thread locals (debug)
         run: LITHIUM_THREAD_LOCAL=std cross test --target $target
       - name: Test with panic backend (release)
@@ -127,8 +125,6 @@ jobs:
         run: LITHIUM_BACKEND=wasm cross test --target $target --release
       - name: Test with Itanium backend (release)
         run: LITHIUM_BACKEND=itanium cross test --target $target --release
-      - name: Test with Emscripten backend (release)
-        run: RUSTFLAGS="-Z emscripten-wasm-eh=false" RUSTDOCFLAGS="-Z emscripten-wasm-eh=false" LITHIUM_BACKEND=emscripten cross test --target $target --release -Z build-std
       - name: Test with std thread locals (release)
         run: LITHIUM_THREAD_LOCAL=std cross test --target $target --release
 
@@ -406,7 +402,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        backend: [panic, itanium, seh, emscripten, wasm]
+        backend: [panic, itanium, seh, wasm]
         thread_local: [std, attribute]
     env:
       LITHIUM_BACKEND: ${{ matrix.backend }}
