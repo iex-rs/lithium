@@ -29,27 +29,22 @@ pub fn intercept<Func: FnOnce() -> T, Catch: FnOnce(*mut u8) -> E, T, E>(
     };
 
     // SAFETY: `do_catch` is marked as `#[rustc_nounwind]`
-    if unsafe {
-        core::intrinsics::catch_unwind(
-            do_call::<Func, Catch, T, E>,
-            (&raw mut data).cast(),
-            do_catch::<Func, Catch, T, E>,
-        )
-    } == 0i32
-    {
-        // SAFETY: If zero was returned, no unwinding happened, so `do_call` must have finished till
-        // the assignment to `data.ok`.
-        Ok(ManuallyDrop::into_inner(unsafe { data.ok }))
-    } else {
-        // SAFETY: If a non-zero value was returned, unwinding has happened, so `do_catch` was
-        // invoked, thus `data.err` is initialized now.
+    if unsafe { core::intrinsics::catch_unwind(do_call, &raw mut data, do_catch) } {
+        // SAFETY: Unwinding has happened, so `do_catch` was invoked and `data.err` is initialized.
         Err(ManuallyDrop::into_inner(unsafe { data.err }))
+    } else {
+        // SAFETY: No unwinding happened, so `do_call` must have finished and assigned `data.ok`.
+        Ok(ManuallyDrop::into_inner(unsafe { data.ok }))
     }
 }
 
-// This function should be unsafe, but isn't due to the definition of `catch_unwind`.
+/// Invoke a function for `catch_unwind`.
+///
+/// # Safety
+///
+/// `data` must point to an instance of `Data` initialized to `init`.
 #[inline]
-fn do_call<Func: FnOnce() -> R, Catch: FnOnce(*mut u8) -> E, R, E>(data: *mut u8) {
+unsafe fn do_call<Func: FnOnce() -> T, Catch, T, E>(data: *mut Data<Func, Catch, T, E>) {
     // If `func` succeeds, we need to drop `catch`. If the destructor of `catch` panics, the only
     // possibility is to abort, as we don't want `do_catch` to access a destructed object.
     struct Dropper;
@@ -61,7 +56,7 @@ fn do_call<Func: FnOnce() -> R, Catch: FnOnce(*mut u8) -> E, R, E>(data: *mut u8
 
     // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer to the
     // `data` variable.
-    let data: &mut Data<Func, Catch, R, E> = unsafe { &mut *data.cast() };
+    let data: &mut Data<Func, Catch, T, E> = unsafe { &mut *data };
 
     // SAFETY: This function is called at the start of the process, so the `init.0` field is still
     // initialized.
@@ -78,13 +73,20 @@ fn do_call<Func: FnOnce() -> R, Catch: FnOnce(*mut u8) -> E, R, E>(data: *mut u8
     data.ok = ManuallyDrop::new(result);
 }
 
-// This function should be unsafe, but isn't due to the definition of `catch_unwind`.
+/// Handle an exception thrown in `catch_unwind`.
+///
+/// # Safety
+///
+/// `data` must point to an instance of `Data` initialized to `init`.
 #[inline]
 #[rustc_nounwind]
-fn do_catch<Func: FnOnce() -> R, Catch: FnOnce(*mut u8) -> E, R, E>(data: *mut u8, ex: *mut u8) {
+unsafe fn do_catch<Func, Catch: FnOnce(*mut u8) -> E, T, E>(
+    data: *mut Data<Func, Catch, T, E>,
+    ex: *mut u8,
+) {
     // SAFETY: `data` is provided by the `catch_unwind` intrinsic, which copies the pointer to the
     // `data` variable.
-    let data: &mut Data<Func, Catch, R, E> = unsafe { &mut *data.cast() };
+    let data: &mut Data<Func, Catch, T, E> = unsafe { &mut *data };
     // SAFETY: This function is called immediately after `do_call` panics, which can only happen at
     // the point when `func` is invoked, so the `init.1` field is still initialized.
     let catch = unsafe { ManuallyDrop::take(&mut data.init.1) };
