@@ -213,6 +213,7 @@ jobs:
               arch: aarch64
             abi: gnu
         include:
+          # rustc does not support arm64ec with gnu or gnullvm
           - machine:
               os: windows-11-arm
               arch: arm64ec
@@ -249,6 +250,8 @@ jobs:
       - name: Test with Itanium backend (debug)
         if: matrix.abi == 'gnu' || matrix.abi == 'gnullvm'
         run: LITHIUM_BACKEND=itanium ci/cargo-save "Test with Itanium backend (debug)" test --target $target
+      # GNU targets don't enable target_thread_local because of a MinGW bug:
+      # https://github.com/rust-lang/rust/issues/135719#issuecomment-2601129757
       - name: Test with std thread locals (debug)
         if: matrix.abi == 'msvc' || matrix.abi == 'gnullvm'
         run: LITHIUM_THREAD_LOCAL=std ci/cargo-save "Test with std thread locals (debug)" test --target $target
@@ -295,6 +298,7 @@ jobs:
         # https://bugs.winehq.org/show_bug.cgi?id=57700
         exclude:
           - abi: gnullvm
+          # Windows doesn't build this target
           - machine:
               rust_arch: aarch64
             abi: gnu
