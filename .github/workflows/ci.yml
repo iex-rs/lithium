@@ -233,12 +233,14 @@ jobs:
         run: rustup update nightly && rustup default nightly
       - name: Add target
         run: rustup target add $target
+      # Rustup packages rust-mingw for the gnullvm target nowadays, but doesn't support an i686
+      # gnullvm host, so we can't use it generally.
       - name: Install and configure LLVM-MinGW
         if: matrix.abi == 'gnullvm'
         run: >
           curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20250528/llvm-mingw-20250528-ucrt-${{ matrix.machine.arch }}.zip -o llvm-mingw.zip &&
           7z x llvm-mingw.zip &&
-          echo "[target.${{ matrix.machine.arch }}-pc-windows-gnullvm]" >~/.cargo/config.toml &&
+          echo "[target.${{ env.target }}]" >~/.cargo/config.toml &&
           echo "linker = '$(pwd -W)/llvm-mingw-20250528-ucrt-${{ matrix.machine.arch }}/bin/clang'" >>~/.cargo/config.toml &&
           echo "rustflags = ['-C', 'target-feature=+crt-static']" >>~/.cargo/config.toml &&
           echo "rustdocflags = ['-C', 'target-feature=+crt-static']" >>~/.cargo/config.toml
