@@ -298,6 +298,10 @@ jobs:
           - machine:
               rust_arch: aarch64
             abi: gnu
+          # https://bugs.winehq.org/show_bug.cgi?id=59963
+          - machine:
+              rust_arch: i686
+            abi: gnu
         # Wine doesn't support arm64ec out of the box yet, see
         # https://bugs.winehq.org/show_bug.cgi?id=58092
         # include:
