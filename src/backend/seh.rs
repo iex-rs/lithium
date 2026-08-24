@@ -9,8 +9,9 @@ use super::{
 use crate::type_checker::TypeChecker;
 use alloc::boxed::Box;
 use core::any::Any;
-use core::marker::{FnPtr, PhantomData};
+use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
+use core::ops::FnPtr;
 use core::panic::PanicPayload;
 use core::sync::atomic::{AtomicU32, Ordering};
 
@@ -350,7 +351,7 @@ impl<P> SmallPtr<P> {
 
 impl<P: FnPtr> SmallPtr<P> {
     fn new_fn(p: P) -> Self {
-        Self::from_erased(p.addr())
+        Self::from_erased(p.as_ptr().as_ptr().cast())
     }
 }
 

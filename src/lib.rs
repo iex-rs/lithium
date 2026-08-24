@@ -177,7 +177,7 @@
     any(backend = "itanium", backend = "seh", backend = "wasm"),
     feature(core_intrinsics, rustc_attrs)
 )]
-#![cfg_attr(backend = "seh", feature(fn_ptr_trait, std_internals))]
+#![cfg_attr(backend = "seh", feature(fn_static, std_internals))]
 #![cfg_attr(
     any(backend = "wasm", all(backend = "itanium", target_arch = "wasm32")),
     feature(link_llvm_intrinsics)
