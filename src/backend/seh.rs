@@ -8,11 +8,11 @@ use super::{
 };
 use crate::type_checker::TypeChecker;
 use alloc::boxed::Box;
+use alloc::panicking::PanicPayload;
 use core::any::Any;
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 use core::ops::FnPtr;
-use core::panic::PanicPayload;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 pub(crate) struct ActiveBackend;
@@ -83,10 +83,7 @@ unsafe impl ThrowByValue for ActiveBackend {
                 // This is a Rust exception. We can't rethrow it immediately from this nounwind
                 // callback, so let's catch it first.
                 // SAFETY: `ex` is the callback value of `core::intrinsics::catch_unwind`.
-                let payload = unsafe { __rust_panic_cleanup(ex) };
-                // SAFETY: `__rust_panic_cleanup` returns a Box.
-                let payload = unsafe { Box::from_raw(payload) };
-                return CaughtUnwind::RustPanic(payload);
+                return CaughtUnwind::RustPanic(unsafe { __rust_panic_cleanup(ex) });
             }
 
             // We catch the exception by reference, so the C++ runtime will drop it. Tell our
@@ -379,12 +376,9 @@ unsafe extern "system-unwind" {
 unsafe extern "Rust" {
     #[rustc_std_internal_symbol]
     safe fn __rust_start_panic(payload: &mut dyn PanicPayload) -> u32;
-}
 
-unsafe extern "C" {
-    #[expect(improper_ctypes, reason = "Copied from std")]
     #[rustc_std_internal_symbol]
-    fn __rust_panic_cleanup(payload: *mut u8) -> *mut (dyn Any + Send + 'static);
+    fn __rust_panic_cleanup(payload: *mut u8) -> Box<dyn Any + Send + 'static>;
 }
 
 fn throw_std_panic(payload: Box<dyn Any + Send + 'static>) -> ! {
@@ -392,10 +386,9 @@ fn throw_std_panic(payload: Box<dyn Any + Send + 'static>) -> ! {
     // upon catching the panic. Call `__rust_start_panic` directly instead.
     struct RewrapBox(Box<dyn Any + Send + 'static>);
 
-    // SAFETY: Copied straight from std.
-    unsafe impl PanicPayload for RewrapBox {
-        fn take_box(&mut self) -> *mut (dyn Any + Send) {
-            Box::into_raw(core::mem::replace(&mut self.0, Box::new(())))
+    impl PanicPayload for RewrapBox {
+        fn take_box(&mut self) -> Box<dyn Any + Send + 'static> {
+            core::mem::replace(&mut self.0, Box::new(()))
         }
         fn get(&mut self) -> &(dyn Any + Send) {
             &*self.0

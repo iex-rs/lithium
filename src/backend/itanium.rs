@@ -122,8 +122,6 @@ const UNWINDER_PRIVATE_WORD_COUNT: usize = {
         if cfg!(target_vendor = "apple") { 5 } else { 20 }
     } else if cfg!(all(target_arch = "aarch64", target_pointer_width = "32")) {
         5
-    } else if cfg!(target_os = "emscripten") {
-        20
     } else if cfg!(all(target_arch = "hexagon", target_os = "linux")) {
         35
     } else if cfg!(any(
