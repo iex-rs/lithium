@@ -238,8 +238,17 @@ jobs:
         run: rustup update nightly && rustup default nightly
       - name: Add target
         run: rustup target add $target
-      # Rustup packages rust-mingw for the gnullvm target nowadays, but doesn't support an i686
-      # gnullvm host, so we can't use it generally.
+      # Rustup packages rust-mingw, but it only contains a linker for
+      # {x86_64,aarch64}-pc-windows-gnu, so we can't use it generally.
+      - name: Install and configure GCC-MinGW
+        if: env.target == 'i686-pc-windows-gnu'
+        run: >
+          curl -L https://github.com/brechtsanders/winlibs_mingw/releases/download/16.2.0posix-14.0.0-ucrt-r1/winlibs-i686-posix-dwarf-gcc-16.2.0-mingw-w64ucrt-14.0.0-r1.7z -o gcc-mingw.zip &&
+          7z x gcc-mingw.zip &&
+          echo "[target.${{ env.target }}]" >~/.cargo/config.toml &&
+          echo "linker = '$(pwd -W)/mingw32/bin/gcc'" >>~/.cargo/config.toml &&
+          echo "rustflags = ['-C', 'target-feature=+crt-static']" >>~/.cargo/config.toml &&
+          echo "rustdocflags = ['-C', 'target-feature=+crt-static']" >>~/.cargo/config.toml
       - name: Install and configure LLVM-MinGW
         if: matrix.abi == 'gnullvm'
         run: >
