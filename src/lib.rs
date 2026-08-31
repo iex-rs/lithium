@@ -177,6 +177,7 @@
     any(backend = "itanium", backend = "seh", backend = "wasm"),
     feature(core_intrinsics, rustc_attrs)
 )]
+#![cfg_attr(backend = "itanium", feature(panic_unwind))]
 #![cfg_attr(backend = "seh", feature(fn_static, std_internals))]
 #![cfg_attr(
     any(backend = "wasm", all(backend = "itanium", target_arch = "wasm32")),
@@ -246,6 +247,9 @@ compile_error!("Using Lithium with panic = \"abort\" is unsupported");
 
 #[cfg(any(abort = "std", backend = "panic", thread_local = "std", test))]
 extern crate std;
+
+#[cfg(backend = "itanium")]
+extern crate unwind;
 
 extern crate alloc;
 

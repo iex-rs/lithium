@@ -3,6 +3,7 @@ use super::{
     ThrowByPointer,
 };
 use core::mem::MaybeUninit;
+use unwind::_Unwind_Reason_Code;
 
 pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTIEX\0");
 
@@ -164,7 +165,7 @@ unsafe extern "C-unwind" {
     fn wasm_throw(tag: i32, ex: *mut u8) -> !;
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn _Unwind_RaiseException(ex: *mut u8) -> i32;
+    fn _Unwind_RaiseException(ex: *mut u8) -> _Unwind_Reason_Code;
 }
 
 /// Raise an Itanium EH ABI-compatible exception.
