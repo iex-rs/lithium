@@ -164,7 +164,7 @@ unsafe extern "C-unwind" {
     fn wasm_throw(tag: i32, ex: *mut u8) -> !;
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn _Unwind_RaiseException(ex: *mut u8) -> !;
+    fn _Unwind_RaiseException(ex: *mut u8) -> i32;
 }
 
 /// Raise an Itanium EH ABI-compatible exception.
@@ -178,6 +178,7 @@ unsafe fn raise(ex: *mut u8) -> ! {
     // SAFETY: Passthrough.
     unsafe {
         _Unwind_RaiseException(ex);
+        abort("Failed to initiate Lithium exception unwinding.\n");
     }
 
     // Although Wasm has its own backend, it has worse debug experience than Itanium can offer, so

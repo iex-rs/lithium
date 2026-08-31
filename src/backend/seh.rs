@@ -404,7 +404,7 @@ fn throw_std_panic(payload: Box<dyn Any + Send + 'static>) -> ! {
     }
 
     __rust_start_panic(&mut RewrapBox(payload));
-    core::intrinsics::abort();
+    abort("Failed to initiate Lithium exception unwinding.\n");
 }
 
 /// Throw a C++ exception.
