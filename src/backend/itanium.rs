@@ -3,7 +3,7 @@ use super::{
     ThrowByPointer,
 };
 use core::mem::MaybeUninit;
-use unwind::_Unwind_Reason_Code;
+use unwind::{_Unwind_RaiseException, unwinder_private_data_size};
 
 pub const LITHIUM_EXCEPTION_CLASS: u64 = u64::from_ne_bytes(*b"RUSTIEX\0");
 
@@ -43,7 +43,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
     unsafe fn throw(ex: *mut Header) -> ! {
         // SAFETY: We provide a valid exception header.
         unsafe {
-            raise(ex.cast());
+            raise(ex);
         }
     }
 
@@ -82,7 +82,7 @@ unsafe impl ThrowByPointer for ActiveBackend {
             //   If project-ffi-unwind changes the rustc behavior, we might have to update this
             //   code.
             unsafe {
-                raise(ex);
+                raise(ex.cast());
             }
         }
 
@@ -97,56 +97,15 @@ unsafe impl ThrowByPointer for ActiveBackend {
 // i386 `__attribute__((aligned))` aligns to 16 bytes too. Therefore, the alignment of this
 // structure might be larger than the actual alignment when we access foreign exceptions, so we
 // can't use this type for that.
+// FIXME: Upstream uses `2 * align_of::<usize>()` here on all platforms. Which one is correct?
 #[repr(C, align(16))]
 pub struct Header {
     class: u64,
     cleanup: Option<unsafe extern "C" fn(i32, *mut Header)>,
     // See `new_header` for why this needs to be a separate field.
     private1: MaybeUninit<*const ()>,
-    private_rest: MaybeUninit<[*const (); UNWINDER_PRIVATE_WORD_COUNT - 1]>,
+    private_rest: MaybeUninit<[*const (); unwinder_private_data_size - 1]>,
 }
-
-// Data from https://github.com/rust-lang/rust/blob/master/library/unwind/src/libunwind.rs
-const UNWINDER_PRIVATE_WORD_COUNT: usize = {
-    // The Itanium EH ABI says the structure contains 2 private uint64_t words. Some architectures
-    // decided this means "2 private native words". So on some 32-bit architectures this is two
-    // 64-bit words, which together with padding amount to 5 native words, and on other
-    // architectures it's two native words. Others are just stupid.
-    if cfg!(target_arch = "x86") {
-        5
-    } else if cfg!(any(
-        all(target_arch = "x86_64"),
-        all(target_arch = "aarch64", target_pointer_width = "64"),
-    )) {
-        if cfg!(windows) { 6 } else { 2 }
-    } else if cfg!(target_arch = "arm") {
-        if cfg!(target_vendor = "apple") { 5 } else { 20 }
-    } else if cfg!(all(target_arch = "aarch64", target_pointer_width = "32")) {
-        5
-    } else if cfg!(all(target_arch = "hexagon", target_os = "linux")) {
-        35
-    } else if cfg!(any(
-        target_arch = "m68k",
-        target_arch = "mips",
-        target_arch = "mips32r6",
-        target_arch = "csky",
-        target_arch = "mips64",
-        target_arch = "mips64r6",
-        target_arch = "powerpc",
-        target_arch = "powerpc64",
-        target_arch = "s390x",
-        target_arch = "sparc",
-        target_arch = "sparc64",
-        target_arch = "riscv64",
-        target_arch = "riscv32",
-        target_arch = "loongarch64",
-        target_arch = "wasm32"
-    )) {
-        2
-    } else {
-        panic!("Unsupported architecture");
-    }
-};
 
 /// Destruct an exception when caught by a foreign runtime.
 ///
@@ -159,34 +118,20 @@ unsafe extern "C" fn cleanup(_code: i32, _ex: *mut Header) {
     );
 }
 
-unsafe extern "C-unwind" {
-    #[cfg(target_arch = "wasm32")]
-    #[link_name = "llvm.wasm.throw"]
-    fn wasm_throw(tag: i32, ex: *mut u8) -> !;
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn _Unwind_RaiseException(ex: *mut u8) -> _Unwind_Reason_Code;
-}
-
 /// Raise an Itanium EH ABI-compatible exception.
 ///
 /// # Safety
 ///
 /// `ex` must point at a valid instance of `_Unwind_Exception`.
 #[inline]
-unsafe fn raise(ex: *mut u8) -> ! {
-    #[cfg(not(target_arch = "wasm32"))]
-    // SAFETY: Passthrough.
-    unsafe {
-        _Unwind_RaiseException(ex);
-        abort("Failed to initiate Lithium exception unwinding.\n");
-    }
+unsafe fn raise(ex: *mut Header) -> ! {
+    // `unwind` provides an implementation of `_Unwind_RaiseException` for Wasm. That's useful
+    // because although Wasm has its own backend, it has worse debug experience than Itanium can
+    // offer, so this backend should know how to handle Wasm as well.
 
-    // Although Wasm has its own backend, it has worse debug experience than Itanium can offer, so
-    // we teach this backend how to handle Wasm as well.
-    #[cfg(target_arch = "wasm32")]
     // SAFETY: Passthrough.
     unsafe {
-        wasm_throw(0, ex);
+        _Unwind_RaiseException(ex.cast());
+        abort("Failed to initiate Lithium exception unwinding.\n");
     }
 }
