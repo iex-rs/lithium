@@ -165,6 +165,7 @@
 //! ```
 
 #![no_std]
+#![cfg_attr(abort = "core", feature(abort_immediate))]
 #![cfg_attr(thread_local = "attribute", feature(thread_local))]
 #![cfg_attr(
     any(backend = "itanium", backend = "seh", backend = "wasm"),
@@ -285,6 +286,6 @@ fn abort(message: &str) -> ! {
     #[cfg(abort = "core")]
     {
         let _ = message;
-        core::intrinsics::abort();
+        core::process::abort_immediate();
     }
 }
